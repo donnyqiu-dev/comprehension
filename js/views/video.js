@@ -71,7 +71,7 @@
         const player = new YT.Player('ytp', {
           videoId: v.youtubeId,
           host: 'https://www.youtube-nocookie.com',
-          playerVars: { controls: opts.custom ? 0 : 1, fs: opts.custom ? 0 : 1, rel: 0, modestbranding: 1, playsinline: 1, disablekb: 1, iv_load_policy: 3, cc_load_policy: 1, cc_lang_pref: 'en', hl: 'en' },
+          playerVars: { controls: opts.custom ? 0 : 1, fs: opts.custom ? 0 : 1, rel: 0, modestbranding: 1, playsinline: 1, disablekb: 1, iv_load_policy: 3, cc_load_policy: opts.captions === false ? 0 : 1, cc_lang_pref: 'en', hl: 'en' },
           events: {
             onReady: function () { resolve(api); events.onReady(); },
             onStateChange: function (e) { if (e.data === YT.PlayerState.ENDED) events.onEnded(); },
@@ -95,7 +95,7 @@
           setCaptions: function (on) {
             try {
               if (on) { player.loadModule('captions'); player.setOption('captions', 'track', { languageCode: 'en' }); }
-              else player.unloadModule('captions');
+              else { player.setOption('captions', 'track', {}); player.unloadModule('captions'); }
             } catch (e) { /* captions not available for this video */ }
           },
           videoId: function () { const d = player.getVideoData && player.getVideoData(); return d && d.video_id; },
@@ -133,6 +133,7 @@
     const qs = v.questions.map(function (q, i) { return Object.assign({ idx: i, answered: false }, q); });
     const vocabs = (v.vocab || []).map(function (w) { return Object.assign({ shown: false }, w); });
     const state = { maxWatched: 0, asking: null, ended: false, answers: [], player: null, timer: null, xp: 0, started: Date.now(), openAnswers: [] };
+    let capOn = p.settings.captions !== false; // English subtitles on by default
 
     ui.$('#app').innerHTML =
       '<div class="lesson-top"><a class="back" href="#/watch">✕</a><div class="lt-title">' + v.emoji + ' ' + ui.esc(v.title) + ' ' + C.levelTag(v.level) + '</div></div>' +
@@ -147,7 +148,7 @@
       '<button class="vbtn" data-c="back" title="Mundur 10 detik">⏪ 10s</button>' +
       '<span class="vtime" id="vtime">0:00 / 0:00</span><span class="vspace"></span>' +
       '<select class="vbtn" data-c="rate" title="Kecepatan"><option value="0.75">0.75x</option><option value="1" selected>1x</option><option value="1.25">1.25x</option></select>' +
-      (v.source === 'youtube' ? '<button class="vbtn on" data-c="cc" title="Subtitle bahasa Inggris">CC</button>' : '') +
+      (v.source === 'youtube' ? '<button class="vbtn' + (capOn ? ' on' : '') + '" data-c="cc" title="Subtitle bahasa Inggris">CC</button>' : '') +
       '<button class="vbtn" data-c="mute" title="Suara">🔊</button>' +
       '<button class="vbtn" data-c="fs" title="Layar penuh">⛶</button>' +
       '</div>' +
@@ -233,9 +234,11 @@
         } else if (c === 'back') {
           pl.seek(Math.max(0, pl.time() - 10));
         } else if (c === 'cc') {
-          const on = !b.classList.contains('on');
-          b.classList.toggle('on', on);
-          pl.setCaptions && pl.setCaptions(on);
+          capOn = !capOn;
+          p.settings.captions = capOn; // remembered for the next videos
+          S.save();
+          b.classList.toggle('on', capOn);
+          pl.setCaptions && pl.setCaptions(capOn);
         } else if (c === 'mute') {
           b.textContent = pl.toggleMute() ? '🔇' : '🔊';
         } else if (c === 'fs') {
@@ -293,6 +296,7 @@
     function setAd(on) {
       if (!!state.inAd === on) return;
       state.inAd = on;
+      state.playTicks = 0; // re-apply the CC choice when the lesson video starts again
       const mount = ui.$('#player-mount'), note = ui.$('#ad-note');
       if (mount) mount.classList.toggle('locked', !on);
       if (note) note.hidden = !on;
@@ -333,6 +337,13 @@
       }
       updateControls();
       if (state.inAd) return;
+
+      // YouTube only loads captions once playback has started (and again after an ad), and it
+      // may switch them on by itself. Re-apply the child's CC choice shortly after play starts.
+      if (st === 1 && pl.setCaptions) {
+        state.playTicks = (state.playTicks || 0) + 1;
+        if (state.playTicks === 2 || state.playTicks === 8) pl.setCaptions(capOn);
+      }
 
       // While a question is open the video must stay paused (the YouTube controls can still be clicked).
       if (state.asking) {
@@ -528,7 +539,7 @@
       onReady: function () { drawTimeline(); },
       onEnded: onEnded,
       onError: onError
-    }, { custom: true }).then(function (pl) {
+    }, { custom: true, captions: capOn }).then(function (pl) {
       if (state.failed) return;
       const rawSeek = pl.seek;
       pl.seek = function (t) { state.seekAt = performance.now(); rawSeek(t); };
