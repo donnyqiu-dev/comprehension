@@ -135,6 +135,25 @@
     const state = { maxWatched: 0, asking: null, ended: false, answers: [], player: null, timer: null, xp: 0, started: Date.now(), openAnswers: [] };
     let capOn = p.settings.captions !== false; // English subtitles on by default
 
+    // Resume an unfinished video (position + answers) after a reload or a break.
+    p.videoProgress = p.videoProgress || {};
+    const saved = p.videoProgress[v.id];
+    if (saved) {
+      state.maxWatched = saved.w || 0;
+      (saved.a || []).forEach(function (a) {
+        const q = qs[a.idx];
+        if (q) { q.answered = true; state.answers.push(a); }
+      });
+      state.openAnswers = saved.o || [];
+      vocabs.forEach(function (w) { if (w.t <= state.maxWatched) w.shown = true; });
+      if (state.maxWatched > 3) state.resumeT = state.maxWatched;
+    }
+    function saveProgress() {
+      p.videoProgress[v.id] = { w: Math.floor(state.maxWatched), a: state.answers, o: state.openAnswers, at: Date.now() };
+      state.savedW = state.maxWatched;
+      S.save();
+    }
+
     ui.$('#app').innerHTML =
       '<div class="lesson-top"><a class="back" href="#/watch">✕</a><div class="lt-title">' + v.emoji + ' ' + ui.esc(v.title) + ' ' + C.levelTag(v.level) + '</div></div>' +
       '<div class="video-layout">' +
@@ -169,7 +188,10 @@
       const tl = ui.$('#timeline');
       if (!tl) return;
       if (!d) { tl.innerHTML = ''; return; }
-      const cur = state.dragT != null ? state.dragT : (state.player && !state.inAd ? state.player.time() : 0);
+      const cur = state.dragT != null ? state.dragT
+        : !state.player ? 0
+        : state.inAd || (v.source === 'youtube' && [1, 2].indexOf(state.player.state()) < 0) ? (state.contentT || 0)
+        : state.player.time();
       tl.innerHTML = '<div class="tl-watched" style="width:' + (100 * state.maxWatched / d) + '%"></div>' +
         '<div class="tl-head" style="left:' + Math.min(100, 100 * cur / d) + '%"></div>' +
         qs.map(function (q) {
@@ -198,7 +220,8 @@
       const btn = ui.$('#vctrl [data-c="play"]');
       if (btn) btn.textContent = pl.playing() ? '⏸' : '▶';
       const vt = ui.$('#vtime');
-      if (vt) vt.textContent = state.inAd ? '📺 Ad · Iklan' : fmt(pl.time()) + ' / ' + fmt(pl.duration() || 0);
+      const shown = v.source === 'youtube' && [1, 2].indexOf(pl.state()) < 0 ? (state.contentT || 0) : pl.time();
+      if (vt) vt.textContent = state.inAd ? '📺 Ad · Iklan' : fmt(shown) + ' / ' + fmt(pl.duration() || 0);
       drawTimeline();
     }
 
@@ -297,6 +320,8 @@
       if (!!state.inAd === on) return;
       state.inAd = on;
       state.playTicks = 0; // re-apply the CC choice when the lesson video starts again
+      // YouTube sometimes restarts the video after an ad: remember where the child was.
+      if (on && state.lastPlayT > 3) state.resumeT = Math.max(state.resumeT || 0, state.lastPlayT);
       const mount = ui.$('#player-mount'), note = ui.$('#ad-note');
       if (mount) mount.classList.toggle('locked', !on);
       if (note) note.hidden = !on;
@@ -323,7 +348,7 @@
       // Time running steadily forward (not a seek jump) while the player is not "playing"
       // for about a second means an ad. Seeks and buffering after a seek do not count.
       const recentSeek = now - (state.seekAt || 0) < 2000;
-      const steady = !recentSeek && delta > 0.05 && delta < 1.2 && st !== 1 && st !== 2;
+      const steady = !recentSeek && delta > 0.05 && delta < 1.2 && st !== 1;
       state.adStreak = steady ? (state.adStreak || 0) + 1 : 0;
 
       // YouTube ads: the player reports the ad's time (and sometimes the ad's video id) while
@@ -333,7 +358,7 @@
         const vid = pl.videoId && pl.videoId();
         const adNow = (vid && vid !== v.youtubeId) || state.adStreak >= 4;
         if (adNow) setAd(true);
-        else if (st === 1 || st === 2 || st === 0) setAd(false);
+        else if (st === 1 || st === 0 || (st === 2 && delta <= 0.05)) setAd(false);
       }
       updateControls();
       if (state.inAd) return;
@@ -344,6 +369,25 @@
         state.playTicks = (state.playTicks || 0) + 1;
         if (state.playTicks === 2 || state.playTicks === 8) pl.setCaptions(capOn);
       }
+
+      // Only judge the lesson video while it is really playing or paused. In other states
+      // (ad not yet recognised, loading, buffering) YouTube may report someone else's time,
+      // and pulling the video back then would fight the ad and hide it from the ad check.
+      if (v.source === 'youtube' && st !== 1 && st !== 2) return;
+      state.contentT = t;
+
+      // Jump back to where the child was (after a reload, or when an ad restarted the video).
+      if (state.resumeT && st === 1) {
+        const r = Math.min(state.resumeT, state.maxWatched);
+        state.resumeT = 0;
+        if (t < r - 2) {
+          pl.seek(r);
+          state.contentT = r;
+          ui.toast('▶ Melanjutkan dari ' + fmt(r));
+          return;
+        }
+      }
+      if (st === 1) state.lastPlayT = t;
 
       // While a question is open the video must stay paused (the YouTube controls can still be clicked).
       if (state.asking) {
@@ -364,6 +408,7 @@
         return;
       }
       if (pl.playing()) state.maxWatched = Math.max(state.maxWatched, t);
+      if (state.maxWatched - (state.savedW || 0) >= 5) saveProgress();
       vocabs.forEach(function (w) { if (!w.shown && t >= w.t) { w.shown = true; showVocab(w); } });
       const due = qs.find(function (q) { return !q.answered && q.t >= 0 && t >= q.t; });
       if (due) ask(due);
@@ -405,7 +450,8 @@
             const ch = Number(b.dataset.i);
             const ok = ch === q.a;
             q.answered = true;
-            state.answers.push({ ok: ok, type: 'mc' });
+            state.answers.push({ ok: ok, type: 'mc', idx: q.idx });
+            saveProgress();
             p.skills.video = p.skills.video || { c: 0, t: 0 };
             p.skills.video.t++; p.stats.questionsTotal++;
             if (ok) { p.skills.video.c++; p.stats.questionsRight++; R.track('correct', 1); }
@@ -438,8 +484,9 @@
         };
         ui.$('#send').onclick = function () {
           q.answered = true;
-          state.answers.push({ ok: true, type: 'open' });
+          state.answers.push({ ok: true, type: 'open', idx: q.idx });
           state.openAnswers.push({ q: q.q, a: ta.value.trim() });
+          saveProgress();
           if (q.vocabLog) {
             ui.toast('💡 Simpan kata-kata itu di Word Garden: ketuk kata di bacaan atau tambah di menu Words.');
           }
@@ -497,6 +544,7 @@
       const prev = p.videos[v.id];
       const firstTime = !prev;
       p.videos[v.id] = { best: Math.max(score, prev ? prev.best : 0), attempts: (prev ? prev.attempts : 0) + 1, at: Date.now() };
+      delete p.videoProgress[v.id]; // finished: next time starts fresh
       if (state.openAnswers.length) {
         p.writings = p.writings || [];
         state.openAnswers.forEach(function (o) { p.writings.unshift({ at: Date.now(), lesson: '🎬 ' + v.title, prompt: o.q, text: o.a }); });
@@ -542,7 +590,7 @@
     }, { custom: true, captions: capOn }).then(function (pl) {
       if (state.failed) return;
       const rawSeek = pl.seek;
-      pl.seek = function (t) { state.seekAt = performance.now(); rawSeek(t); };
+      pl.seek = function (t) { state.seekAt = performance.now(); state.contentT = t; rawSeek(t); };
       state.player = pl;
       state.timer = setInterval(tick, 250);
     }).catch(function () {
