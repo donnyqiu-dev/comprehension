@@ -436,3 +436,16 @@ button.shop-item { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Lesson video controls (below the video, not on top of it) ---------- */
+.vctrl { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.vbtn { font: 800 .95rem var(--font); border: 2px solid var(--line); background: #fff; color: var(--ink); border-radius: 12px; padding: 6px 10px; min-height: 40px; cursor: pointer; width: auto; }
+.vbtn.big { min-width: 56px; font-size: 1.2rem; background: var(--primary); color: #fff; border-color: var(--primary); }
+.vbtn.on { background: #ede9fe; border-color: var(--primary-2); color: var(--primary); }
+.vtime { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--muted); padding: 0 4px; }
+.vspace { flex: 1; }
+#timeline { cursor: pointer; height: 14px; }
+.video-stage:fullscreen { background: #000; display: flex; flex-direction: column; justify-content: center; padding: 16px; }
+.video-stage:fullscreen .player { border-radius: 0; max-height: calc(100vh - 110px); width: auto; aspect-ratio: 16 / 9; margin: 0 auto; }
+.video-stage:fullscreen .vtime { color: #ddd; }
+@media (max-width: 600px) { .vbtn { padding: 6px 8px; font-size: .85rem; } .vspace { display: none; } }

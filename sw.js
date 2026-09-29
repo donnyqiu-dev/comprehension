@@ -1,5 +1,5 @@
 /* Offline cache for the app shell. Videos and the dictionary still need internet. */
-const CACHE = 'readquest-v3';
+const CACHE = 'readquest-v4';
 const FILES = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest', 'assets/icon.svg',
   'js/store.js', 'js/ui.js', 'js/srs.js', 'js/rewards.js', 'js/app.js',

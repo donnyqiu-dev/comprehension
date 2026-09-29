@@ -28,19 +28,23 @@
     return /^[A-Za-z0-9_-]{11}$/.test(s) ? s : null;
   }
   App.parseYouTube = parseYouTube;
-  App.makePlayer = function (v, mount, events) { return makePlayer(v, mount, events); };
+  App.makePlayer = function (v, mount, events, opts) { return makePlayer(v, mount, events, opts); };
 
   function fmt(t) {
     if (t < 0) return 'end';
+    if (!isFinite(t)) return '--:--';
     t = Math.round(t);
     return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
   }
   App.fmtTime = fmt;
 
-  /* Wraps YouTube or <video> behind one small interface. */
-  function makePlayer(v, mount, events) {
+  /* Wraps YouTube or <video> behind one small interface.
+     opts.custom: hide the native controls (the lesson page draws its own buttons below the video,
+     so the child cannot scrub the timeline or click through to other YouTube videos). */
+  function makePlayer(v, mount, events, opts) {
+    opts = opts || {};
     if (v.source === 'html5') {
-      mount.innerHTML = '<video id="h5" playsinline controls controlsList="nodownload noplaybackrate" src="' + ui.esc(v.url) + '"></video>';
+      mount.innerHTML = '<video id="h5" playsinline ' + (opts.custom ? '' : 'controls ') + 'controlsList="nodownload noplaybackrate" src="' + ui.esc(v.url) + '"></video>';
       const el = mount.querySelector('video');
       el.addEventListener('ended', events.onEnded);
       el.addEventListener('error', function () { events.onError('Video tidak bisa diputar.'); });
@@ -52,6 +56,10 @@
         pause: function () { el.pause(); },
         seek: function (t) { el.currentTime = t; },
         playing: function () { return !el.paused; },
+        setRate: function (r) { el.playbackRate = r; },
+        toggleMute: function () { el.muted = !el.muted; return el.muted; },
+        hasCaptions: false,
+        videoId: function () { return null; },
         destroy: function () { el.pause(); el.removeAttribute('src'); el.load(); }
       });
     }
@@ -62,7 +70,7 @@
         const player = new YT.Player('ytp', {
           videoId: v.youtubeId,
           host: 'https://www.youtube-nocookie.com',
-          playerVars: { rel: 0, modestbranding: 1, playsinline: 1, disablekb: 1, iv_load_policy: 3, cc_load_policy: 1, cc_lang_pref: 'en', hl: 'en' },
+          playerVars: { controls: opts.custom ? 0 : 1, fs: opts.custom ? 0 : 1, rel: 0, modestbranding: 1, playsinline: 1, disablekb: 1, iv_load_policy: 3, cc_load_policy: 1, cc_lang_pref: 'en', hl: 'en' },
           events: {
             onReady: function () { resolve(api); events.onReady(); },
             onStateChange: function (e) { if (e.data === YT.PlayerState.ENDED) events.onEnded(); },
@@ -76,6 +84,20 @@
           pause: function () { player.pauseVideo && player.pauseVideo(); },
           seek: function (t) { player.seekTo && player.seekTo(t, true); },
           playing: function () { return player.getPlayerState && player.getPlayerState() === YT.PlayerState.PLAYING; },
+          setRate: function (r) { player.setPlaybackRate && player.setPlaybackRate(r); },
+          toggleMute: function () {
+            if (player.isMuted && player.isMuted()) { player.unMute(); return false; }
+            player.mute && player.mute(); return true;
+          },
+          hasCaptions: true,
+          setCaptions: function (on) {
+            try {
+              if (on) { player.loadModule('captions'); player.setOption('captions', 'track', { languageCode: 'en' }); }
+              else player.unloadModule('captions');
+            } catch (e) { /* captions not available for this video */ }
+          },
+          videoId: function () { const d = player.getVideoData && player.getVideoData(); return d && d.video_id; },
+          restore: function (t) { player.loadVideoById && player.loadVideoById({ videoId: v.youtubeId, startSeconds: t }); },
           destroy: function () { try { player.destroy(); } catch (e) { /* ignore */ } }
         };
       });
@@ -115,10 +137,21 @@
       '<div class="lesson-top"><a class="back" href="#/watch">✕</a><div class="lt-title">' + v.emoji + ' ' + ui.esc(v.title) + ' ' + C.levelTag(v.level) + '</div></div>' +
       '<div class="video-layout">' +
       '<div class="video-col">' +
+      '<div class="video-stage" id="stage">' +
       '<div class="player-box"><div id="player-mount" class="player"><div class="loading">⏳ Loading video…</div></div>' +
       '<div class="vocab-pop" id="vocab-pop" hidden></div></div>' +
-      '<div class="timeline" id="timeline"></div>' +
-      '<div class="row between wrap small muted"><span>⛔ No skipping ahead · Tidak bisa loncat ke depan</span><span id="progress-txt"></span></div>' +
+      '<div class="vctrl" id="vctrl">' +
+      '<button class="vbtn big" data-c="play" title="Play / Pause">▶</button>' +
+      '<button class="vbtn" data-c="back" title="Mundur 10 detik">⏪ 10s</button>' +
+      '<span class="vtime" id="vtime">0:00 / 0:00</span><span class="vspace"></span>' +
+      '<select class="vbtn" data-c="rate" title="Kecepatan"><option value="0.75">0.75x</option><option value="1" selected>1x</option><option value="1.25">1.25x</option></select>' +
+      (v.source === 'youtube' ? '<button class="vbtn on" data-c="cc" title="Subtitle bahasa Inggris">CC</button>' : '') +
+      '<button class="vbtn" data-c="mute" title="Suara">🔊</button>' +
+      '<button class="vbtn" data-c="fs" title="Layar penuh">⛶</button>' +
+      '</div>' +
+      '<div class="timeline" id="timeline" title="Klik bagian yang sudah ditonton untuk mengulang"></div>' +
+      '</div>' +
+      '<div class="row between wrap small muted"><span>⛔ No skipping ahead · Klik timeline ungu untuk mengulang bagian yang sudah ditonton</span><span id="progress-txt"></span></div>' +
       '<div id="question-box"></div>' +
       '</div>' +
       '<aside class="card side"><h3>🎯 Mission</h3><p class="small">' + ui.esc(v.intro || 'Watch carefully and answer the questions.') + '</p>' +
@@ -127,7 +160,8 @@
       '</div>';
 
     function drawTimeline() {
-      const d = state.player ? state.player.duration() : 0;
+      let d = state.player ? state.player.duration() : 0;
+      if (!isFinite(d)) d = 0;
       const tl = ui.$('#timeline');
       if (!tl) return;
       if (!d) { tl.innerHTML = ''; return; }
@@ -152,6 +186,56 @@
       box._t = setTimeout(function () { box.hidden = true; }, 6000);
     }
 
+    function updateControls() {
+      const pl = state.player;
+      if (!pl) return;
+      const btn = ui.$('#vctrl [data-c="play"]');
+      if (btn) btn.textContent = pl.playing() ? '⏸' : '▶';
+      const vt = ui.$('#vtime');
+      if (vt) vt.textContent = fmt(pl.time()) + ' / ' + fmt(pl.duration() || 0);
+    }
+
+    function wireControls() {
+      const bar = ui.$('#vctrl');
+      bar.addEventListener('click', function (e) {
+        const b = e.target.closest('[data-c]');
+        const pl = state.player;
+        if (!b || !pl) return;
+        const c = b.dataset.c;
+        if (c === 'play') {
+          if (pl.playing()) pl.pause();
+          else if (state.asking) nag('✋ Jawab pertanyaannya dulu ya.');
+          else pl.play();
+        } else if (c === 'back') {
+          pl.seek(Math.max(0, pl.time() - 10));
+        } else if (c === 'cc') {
+          const on = !b.classList.contains('on');
+          b.classList.toggle('on', on);
+          pl.setCaptions && pl.setCaptions(on);
+        } else if (c === 'mute') {
+          b.textContent = pl.toggleMute() ? '🔇' : '🔊';
+        } else if (c === 'fs') {
+          const stage = ui.$('#stage');
+          if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
+          else if (stage.requestFullscreen) stage.requestFullscreen().catch(function () {});
+        }
+        updateControls();
+      });
+      bar.querySelector('[data-c="rate"]').addEventListener('change', function () {
+        state.player && state.player.setRate(Number(this.value));
+      });
+      // Clicking the timeline rewinds to any point already watched (never forward).
+      ui.$('#timeline').addEventListener('click', function (e) {
+        const pl = state.player;
+        const d = pl ? pl.duration() : 0;
+        if (!d || !isFinite(d) || state.asking) return;
+        const r = this.getBoundingClientRect();
+        const t = d * (e.clientX - r.left) / r.width;
+        if (t > state.maxWatched + 0.5) { nag('⛔ Bagian itu belum ditonton.'); return; }
+        pl.seek(Math.max(0, t));
+      });
+    }
+
     function nag(msg) {
       const now = Date.now();
       if (now - (state.lastNag || 0) < 3000) return;
@@ -166,6 +250,15 @@
       const dt = state.lastTick ? (now - state.lastTick) / 1000 : 0.25;
       state.lastTick = now;
       const t = pl.time();
+      updateControls();
+
+      // The embed can switch to another video (e.g. a suggestion inside the player): load ours back.
+      const vid = pl.videoId && pl.videoId();
+      if (vid && v.source === 'youtube' && vid !== v.youtubeId) {
+        pl.restore(state.maxWatched);
+        nag('🎬 Kita tonton video pelajaran ini dulu ya.');
+        return;
+      }
 
       // While a question is open the video must stay paused (the YouTube controls can still be clicked).
       if (state.asking) {
@@ -288,7 +381,7 @@
       if (state.ended) return;
       // Jumping straight to the end also fires "ended": send the child back instead.
       const d = state.player ? state.player.duration() : 0;
-      if (state.player && d && state.maxWatched < d - 3) {
+      if (state.player && d && isFinite(d) && state.maxWatched < d - 3) {
         state.player.seek(state.maxWatched);
         state.player.play();
         nag('⛔ Tidak bisa loncat ke akhir. Tonton dulu ya!');
@@ -342,11 +435,15 @@
       ui.$('#answer-anyway').onclick = function () { state.player = null; state.ended = true; askEndQuestions(); };
     }
 
+    wireControls();
+    function onHidden() { if (document.hidden && state.player && state.player.playing()) state.player.pause(); }
+    document.addEventListener('visibilitychange', onHidden);
+
     makePlayer(v, ui.$('#player-mount'), {
       onReady: function () { drawTimeline(); },
       onEnded: onEnded,
       onError: onError
-    }).then(function (pl) {
+    }, { custom: true }).then(function (pl) {
       if (state.failed) return;
       state.player = pl;
       state.timer = setInterval(tick, 250);
@@ -355,6 +452,8 @@
     });
 
     App.shell.onLeave(function () {
+      document.removeEventListener('visibilitychange', onHidden);
+      if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
       clearInterval(state.timer);
       state.player && state.player.destroy();
     });
