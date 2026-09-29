@@ -284,8 +284,7 @@
       stage.innerHTML =
         '<div class="card"><h2>🧩 Match the word to its meaning</h2><p class="small muted">Pasangkan kata dengan artinya.</p>' +
         '<div class="match"><div class="mcol">' + left.map(function (w) { return '<button class="mbtn" data-k="' + ui.esc(w.w) + '" data-side="l">' + ui.esc(w.w) + '</button>'; }).join('') + '</div>' +
-        '<div class="mcol">' + right.map(function (w) { return '<button class="mbtn def" data-k="' + ui.esc(w.w) + '" data-side="r">' + ui.esc(w.def) + '</button>'; }).join('') + '</div></div>' +
-        '<div class="row end"><button class="btn" id="skip">Skip</button></div></div>';
+        '<div class="mcol">' + right.map(function (w) { return '<button class="mbtn def" data-k="' + ui.esc(w.w) + '" data-side="r">' + ui.esc(w.def) + '</button>'; }).join('') + '</div></div></div>';
       ui.$all('.mbtn', stage).forEach(function (b) {
         b.onclick = function () {
           if (b.classList.contains('ok')) return;
@@ -313,10 +312,10 @@
           sel = null;
         };
       });
-      ui.$('#skip').onclick = next;
     }
 
-    /* 5. Speaking (speech recognition when available) */
+    /* 5. Speaking (speech recognition when available). There is no Skip button: a way out
+       only appears when the microphone does not work, or after 3 honest tries. */
     function stepSpeak(stage) {
       const target = r.speak;
       const rec = C.recognizer();
@@ -328,12 +327,17 @@
         (rec ? '<button class="btn primary big" id="mic">🎤 Tap & speak</button>' : '') + '</div>' +
         '<div id="speak-res"></div>' +
         (rec ? '' : '<p class="small muted">Browser ini tidak mendukung pengenalan suara (coba Chrome). Bacakan kalimat ke orang tua/teman, lalu tekan tombol di bawah.</p><button class="btn primary" id="honor">✅ I said it out loud</button>') +
-        '<div class="row end"><button class="btn" id="skip">Skip</button></div></div>';
+        '<div id="way-out"></div></div>';
       ui.$('#listen').onclick = function () { ui.speak(target); };
       ui.$('#slow').onclick = function () { ui.speak(target, { rate: 0.6 }); };
-      ui.$('#skip').onclick = next;
       const honor = ui.$('#honor');
       if (honor) honor.onclick = function () { speakDone(0.8); };
+      function micProblem(msg) {
+        ui.$('#way-out').innerHTML = '<div class="feedback no"><b>🎤 ' + msg + '</b>' +
+          '<p class="small">Cek izin mikrofon di browser (ikon 🔒 di sebelah alamat), lalu coba lagi. Kalau tetap tidak bisa, bacakan kalimat ke orang tua lalu lanjut.</p></div>' +
+          '<div class="row end"><button class="btn" id="no-mic">Lanjut tanpa mikrofon (tanpa XP) →</button></div>';
+        ui.$('#no-mic').onclick = next;
+      }
       if (rec) {
         const mic = ui.$('#mic');
         mic.onclick = function () {
@@ -348,13 +352,18 @@
           ui.$('#target').innerHTML = res.words.map(function (w, i) { return '<span class="' + (res.hits[i] ? 'hit' : 'miss') + '">' + w + '</span>'; }).join(' ');
           const pct = Math.round(res.score * 100);
           ui.$('#speak-res').innerHTML = '<div class="feedback ' + (res.score >= 0.6 ? 'ok' : 'no') + '"><b>' + pct + '% ' + (res.score >= 0.9 ? '🌟 Amazing!' : res.score >= 0.6 ? '👍 Good job!' : '💪 Try again!') + '</b><p class="small">I heard: “' + ui.esc(heard[0]) + '”</p></div>' +
-            (res.score < 0.6 && tries >= 3 ? '<button class="btn" id="accept">Continue anyway →</button>' : '');
+            (res.score < 0.6 && tries >= 3 ? '<p class="small">Kamu sudah mencoba 3 kali. Hebat! Boleh lanjut, atau coba sekali lagi.</p><button class="btn" id="accept">Continue →</button>' : '');
           const acc = ui.$('#accept'); if (acc) acc.onclick = function () { speakDone(res.score); };
           if (res.score >= 0.6) { ui.sfx.right(); setTimeout(function () { speakDone(res.score); }, 1300); }
           else ui.sfx.wrong();
         };
+        let quiet = 0;
         rec.onerror = function (e) {
-          ui.toast(e.error === 'not-allowed' ? '🎤 Izinkan mikrofon di browser dulu ya.' : '🎤 Tidak terdengar. Coba lagi!');
+          if (e.error === 'not-allowed' || e.error === 'service-not-allowed') micProblem('Mikrofon tidak diizinkan.');
+          else if (e.error === 'audio-capture') micProblem('Mikrofon tidak ditemukan.');
+          else if (e.error === 'network') micProblem('Pengenalan suara butuh internet.');
+          else if (++quiet >= 3) micProblem('Suaramu belum terdengar.');
+          else ui.toast('🎤 Tidak terdengar. Coba lagi, bicara lebih dekat ke mikrofon!');
         };
         rec.onend = function () { const mic = ui.$('#mic'); if (mic) { mic.disabled = false; mic.textContent = '🎤 Tap & speak'; mic.classList.remove('pulse'); } };
         App.shell.onLeave(function () { try { rec.abort(); } catch (e) { /* ignore */ } });
@@ -363,7 +372,7 @@
         p.stats.speaking++;
         S.save();
         R.track('speak', 1);
-        const xp = score >= 0.9 ? 15 : 10;
+        const xp = score >= 0.9 ? 15 : score >= 0.6 ? 10 : 5; // 5 = effort after 3 tries
         st.xp += xp;
         R.award(xp, 3, 'Speaking: ' + r.title);
         next();
@@ -379,7 +388,7 @@
         '<p class="prompt">' + ui.esc(w.prompt) + '</p><p class="small muted">💡 ' + ui.esc(w.hint || '') + '</p>' +
         '<textarea id="wtext" rows="6" placeholder="Write in English here…"></textarea>' +
         '<ul class="checklist" id="checks"></ul>' +
-        '<div class="row between"><button class="btn" id="skip">Skip</button><button class="btn primary" id="submit" disabled>Submit ✨</button></div></div>';
+        '<div class="row end"><button class="btn primary" id="submit" disabled>Submit ✨</button></div></div>';
       const ta = ui.$('#wtext');
       const draftKey = 'rq-draft-' + p.id + '-' + r.id;
       try { ta.value = localStorage.getItem(draftKey) || ''; } catch (e) { /* ignore */ }
@@ -402,7 +411,6 @@
       }
       ta.oninput = check;
       check();
-      ui.$('#skip').onclick = next;
       ui.$('#submit').onclick = function () {
         const c = check();
         p.writings = p.writings || [];
