@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ReadQuest · English Reading Adventure</title>
+  <meta name="description" content="Latihan membaca, menonton video, kosa kata, dan comprehension bahasa Inggris untuk anak SD kelas 6. Data tersimpan di perangkat.">
+  <meta name="theme-color" content="#6d28d9">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar" id="topbar" hidden>
+    <a class="brand" href="#/"><span class="brand-icon">📖</span><span class="brand-name">ReadQuest</span></a>
+    <div class="top-stats">
+      <span class="chip streak" id="top-streak" title="Streak (hari berturut-turut)">🔥 0</span>
+      <span class="chip coins" id="top-coins" title="Koin">🪙 0</span>
+      <span class="chip xp" id="top-xp" title="XP">⭐ 0</span>
+      <button class="avatar-btn" id="top-avatar" title="Ganti profil">🦊</button>
+    </div>
+  </header>
+
+  <main id="app" tabindex="-1"></main>
+
+  <nav class="tabbar" id="tabbar" hidden>
+    <a href="#/" data-tab="home"><span>🏠</span><small>Home</small></a>
+    <a href="#/read" data-tab="read"><span>📚</span><small>Read</small></a>
+    <a href="#/watch" data-tab="watch"><span>🎬</span><small>Watch</small></a>
+    <a href="#/words" data-tab="words"><span>🌼</span><small>Words</small></a>
+    <a href="#/me" data-tab="me"><span>🦉</span><small>Lumo</small></a>
+    <a href="#/parent" data-tab="parent"><span>👪</span><small>Parent</small></a>
+  </nav>
+
+  <div id="toasts" aria-live="polite"></div>
+  <canvas id="confetti" aria-hidden="true"></canvas>
+
+  <script src="js/store.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/srs.js"></script>
+  <script src="js/data/readings.js"></script>
+  <script src="js/data/videos.js"></script>
+  <script src="js/data/rewards.js"></script>
+  <script src="js/rewards.js"></script>
+  <script src="js/views/common.js"></script>
+  <script src="js/views/home.js"></script>
+  <script src="js/views/reading.js"></script>
+  <script src="js/views/video.js"></script>
+  <script src="js/views/words.js"></script>
+  <script src="js/views/me.js"></script>
+  <script src="js/views/parent.js"></script>
+  <script src="js/views/builder.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
