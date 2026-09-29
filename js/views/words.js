@@ -188,10 +188,10 @@
     ui.$all('.mbtn', box).forEach(function (b) {
       b.onclick = function () {
         if (b.classList.contains('ok')) return;
+        if (b.dataset.side === 'l') ui.sayWord(b.textContent); // every tap on a word says it
         if (!sel || sel.dataset.side === b.dataset.side) {
           ui.$all('.mbtn.sel', box).forEach(function (x) { x.classList.remove('sel'); });
           sel = b; b.classList.add('sel');
-          if (b.dataset.side === 'l') ui.sayWord(b.textContent);
           return;
         }
         if (sel.dataset.k === b.dataset.k) {
