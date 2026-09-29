@@ -138,7 +138,8 @@
       '<div class="video-layout">' +
       '<div class="video-col">' +
       '<div class="video-stage" id="stage">' +
-      '<div class="player-box"><div id="player-mount" class="player"><div class="loading">⏳ Loading video…</div></div>' +
+      '<div class="player-box"><div id="player-mount" class="player locked"><div class="loading">⏳ Loading video…</div></div>' +
+      '<div class="player-cover" id="cover" hidden><div class="cover-emoji" id="cover-emoji">🎧</div><b id="cover-text"></b><small id="cover-sub"></small></div>' +
       '<div class="vocab-pop" id="vocab-pop" hidden></div></div>' +
       '<div class="vctrl" id="vctrl">' +
       '<button class="vbtn big" data-c="play" title="Play / Pause">▶</button>' +
@@ -224,6 +225,11 @@
       bar.querySelector('[data-c="rate"]').addEventListener('change', function () {
         state.player && state.player.setRate(Number(this.value));
       });
+      // The video itself does not take clicks (so YouTube links cannot be opened);
+      // a click on the video area toggles play/pause instead.
+      ui.$('#player-mount').addEventListener('click', function () {
+        bar.querySelector('[data-c="play"]').click();
+      });
       // Clicking the timeline rewinds to any point already watched (never forward).
       ui.$('#timeline').addEventListener('click', function (e) {
         const pl = state.player;
@@ -285,9 +291,24 @@
       drawTimeline();
     }
 
+    /* Hide the video (it stays loaded underneath) while the child answers, so YouTube's
+       pause screen with suggested videos is not visible. */
+    function cover(on, emoji, text, sub) {
+      const mount = ui.$('#player-mount'), c = ui.$('#cover');
+      if (!mount || !c) return;
+      mount.classList.toggle('covered', !!on);
+      c.hidden = !on;
+      if (on) {
+        ui.$('#cover-emoji').textContent = emoji;
+        ui.$('#cover-text').textContent = text;
+        ui.$('#cover-sub').textContent = sub || '';
+      }
+    }
+
     function ask(q) {
       state.asking = q;
       state.player && state.player.pause();
+      cover(true, q.type === 'mc' ? '🎧' : '✍️', 'Answer the question below', 'Jawab pertanyaan di bawah, lalu video akan lanjut.');
       if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
       const box = ui.$('#question-box');
       const prevT = qs.filter(function (x) { return x.answered && x.t >= 0 && x.t < q.t; }).map(function (x) { return x.t; }).pop() || 0;
@@ -354,6 +375,7 @@
       if (rw) rw.onclick = function () {
         box.innerHTML = '';
         state.asking = null;
+        cover(false);
         // mark this question as waiting again, replay from the previous checkpoint
         state.player.seek(Math.max(0, prevT));
         state.player.play();
@@ -368,6 +390,7 @@
       state.asking = null;
       drawTimeline();
       if (state.ended) { askEndQuestions(); return; }
+      cover(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       state.player && state.player.play();
     }
@@ -394,6 +417,7 @@
 
     function finish() {
       clearInterval(state.timer);
+      cover(true, '🏆', 'Video complete!', 'Video selesai. Hebat!');
       const mc = state.answers.filter(function (a) { return a.type === 'mc'; });
       const right = mc.filter(function (a) { return a.ok; }).length;
       const open = state.answers.filter(function (a) { return a.type === 'open'; }).length;

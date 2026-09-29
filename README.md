@@ -39,7 +39,7 @@ Tersedia **12 bacaan orisinal** (fiksi dan nonfiksi, banyak bertema Indonesia: K
 
 ### 🎬 Menonton video (gaya Edpuzzle)
 - Video **berhenti otomatis** di waktu tertentu untuk memberi pertanyaan (pilihan ganda atau jawaban tertulis)
-- **Tidak bisa loncat ke depan**: kontrol YouTube diganti tombol aplikasi di bawah video (play, mundur 10 detik, kecepatan, subtitle, layar penuh), dan timeline hanya bisa diklik untuk mengulang bagian yang sudah ditonton. Ada juga tombol *Watch that part again*. Jika anak membuka video lain dari dalam player, video pelajaran otomatis dimuat kembali, dan video dijeda saat anak pindah tab.
+- **Tidak bisa loncat ke depan**: kontrol YouTube diganti tombol aplikasi di bawah video (play, mundur 10 detik, kecepatan, subtitle, layar penuh), dan timeline hanya bisa diklik untuk mengulang bagian yang sudah ditonton. Ada juga tombol *Watch that part again*. Area video tidak bisa diklik (link YouTube seperti *More videos* dan logo tidak bisa dibuka); klik di area video hanya memutar atau menjeda. Saat pertanyaan muncul, video ditutup sementara dengan layar "Answer the question below" supaya anak fokus ke soal. Video juga dijeda otomatis saat anak pindah tab.
 - **Kosa kata muncul** saat kata itu diucapkan, lalu otomatis disimpan ke Word Garden
 - Timeline menunjukkan posisi pertanyaan
 - Video bawaan: National Geographic *Oceans 101*, TED-Ed (*tornadoes, sleep, cats, bilingual brain*), dan 2 episode **BBC Learning English – 6 Minute English**
