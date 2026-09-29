@@ -459,3 +459,4 @@ button.shop-item { cursor: pointer; }
 .cover-emoji { font-size: 3.4rem; animation: bounce 1.8s infinite; }
 .player-cover b { font-family: var(--title); font-size: 1.4rem; }
 .video-stage:fullscreen .player-box { width: 100%; }
+.ad-note { background: #fef3c7; color: #78350f; border-radius: 12px; padding: 8px 12px; margin-top: 8px; font-size: .9rem; font-weight: 600; }

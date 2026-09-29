@@ -56,6 +56,7 @@
         pause: function () { el.pause(); },
         seek: function (t) { el.currentTime = t; },
         playing: function () { return !el.paused; },
+        state: function () { return el.ended ? 0 : el.paused ? 2 : 1; },
         setRate: function (r) { el.playbackRate = r; },
         toggleMute: function () { el.muted = !el.muted; return el.muted; },
         hasCaptions: false,
@@ -84,6 +85,7 @@
           pause: function () { player.pauseVideo && player.pauseVideo(); },
           seek: function (t) { player.seekTo && player.seekTo(t, true); },
           playing: function () { return player.getPlayerState && player.getPlayerState() === YT.PlayerState.PLAYING; },
+          state: function () { return player.getPlayerState ? player.getPlayerState() : null; },
           setRate: function (r) { player.setPlaybackRate && player.setPlaybackRate(r); },
           toggleMute: function () {
             if (player.isMuted && player.isMuted()) { player.unMute(); return false; }
@@ -97,7 +99,6 @@
             } catch (e) { /* captions not available for this video */ }
           },
           videoId: function () { const d = player.getVideoData && player.getVideoData(); return d && d.video_id; },
-          restore: function (t) { player.loadVideoById && player.loadVideoById({ videoId: v.youtubeId, startSeconds: t }); },
           destroy: function () { try { player.destroy(); } catch (e) { /* ignore */ } }
         };
       });
@@ -150,6 +151,7 @@
       '<button class="vbtn" data-c="mute" title="Suara">🔊</button>' +
       '<button class="vbtn" data-c="fs" title="Layar penuh">⛶</button>' +
       '</div>' +
+      '<div class="ad-note" id="ad-note" hidden>📺 Iklan dari YouTube. Tunggu sampai selesai, atau tekan <b>Skip</b> di video jika ada. Video pelajaran akan mulai setelahnya.</div>' +
       '<div class="timeline" id="timeline" title="Klik bagian yang sudah ditonton untuk mengulang"></div>' +
       '</div>' +
       '<div class="row between wrap small muted"><span>⛔ No skipping ahead · Klik timeline ungu untuk mengulang bagian yang sudah ditonton</span><span id="progress-txt"></span></div>' +
@@ -193,7 +195,7 @@
       const btn = ui.$('#vctrl [data-c="play"]');
       if (btn) btn.textContent = pl.playing() ? '⏸' : '▶';
       const vt = ui.$('#vtime');
-      if (vt) vt.textContent = fmt(pl.time()) + ' / ' + fmt(pl.duration() || 0);
+      if (vt) vt.textContent = state.inAd ? '📺 Ad · Iklan' : fmt(pl.time()) + ' / ' + fmt(pl.duration() || 0);
     }
 
     function wireControls() {
@@ -242,6 +244,15 @@
       });
     }
 
+    function setAd(on) {
+      if (!!state.inAd === on) return;
+      state.inAd = on;
+      const mount = ui.$('#player-mount'), note = ui.$('#ad-note');
+      if (mount) mount.classList.toggle('locked', !on);
+      if (note) note.hidden = !on;
+      if (!on) state.lastTick = performance.now(); // start timing fresh after the ad
+    }
+
     function nag(msg) {
       const now = Date.now();
       if (now - (state.lastNag || 0) < 3000) return;
@@ -256,15 +267,21 @@
       const dt = state.lastTick ? (now - state.lastTick) / 1000 : 0.25;
       state.lastTick = now;
       const t = pl.time();
-      updateControls();
+      const st = pl.state ? pl.state() : null;
+      const moved = state.lastT != null && Math.abs(t - state.lastT) > 0.05;
+      state.lastT = t;
 
-      // The embed can switch to another video (e.g. a suggestion inside the player): load ours back.
-      const vid = pl.videoId && pl.videoId();
-      if (vid && v.source === 'youtube' && vid !== v.youtubeId) {
-        pl.restore(state.maxWatched);
-        nag('🎬 Kita tonton video pelajaran ini dulu ya.');
-        return;
+      // YouTube ads: the player reports the ad's time (and sometimes the ad's video id) while
+      // its state is not "playing". During an ad the video must be clickable (Skip button)
+      // and our skip/question checks must wait, otherwise the ad time looks like a jump.
+      if (v.source === 'youtube' && !state.asking) {
+        const vid = pl.videoId && pl.videoId();
+        const adNow = (vid && vid !== v.youtubeId) || (moved && st !== 1 && st !== 2);
+        if (adNow) setAd(true);
+        else if (st === 1 || st === 2 || st === 0) setAd(false);
       }
+      updateControls();
+      if (state.inAd) return;
 
       // While a question is open the video must stay paused (the YouTube controls can still be clicked).
       if (state.asking) {
