@@ -123,6 +123,8 @@
         '</ul>' : '') +
       '</div>' +
 
+      wordsCard() +
+
       '<div class="card"><h3>💾 Data (tersimpan di perangkat ini)</h3>' +
       '<p class="small muted">Semua progres disimpan di localStorage browser ini. Unduh cadangan secara berkala, terutama sebelum membersihkan browser atau pindah perangkat.</p>' +
       '<div class="row gap wrap"><button class="btn" id="export">⬇️ Download backup</button>' +
@@ -179,6 +181,32 @@
     };
     ui.$all('[data-delr]').forEach(function (b) { b.onclick = function () { if (confirm('Hapus bacaan ini?')) { S.db.customReadings = customR.filter(function (x) { return x.id !== b.dataset.delr; }); S.save(); App.views.parent(); } }; });
     ui.$all('[data-delv]').forEach(function (b) { b.onclick = function () { if (confirm('Hapus video ini?')) { S.db.customVideos = customV.filter(function (x) { return x.id !== b.dataset.delv; }); S.save(); App.views.parent(); } }; });
+
+    /* The child's words, hardest first. Only the parent can remove a word (e.g. a typo),
+       so the child cannot delete difficult words instead of practising them. */
+    function wordsCard() {
+      const plants = ['🌰', '🌱', '🌿', '🪴', '🌳', '🌸'];
+      const list = Object.keys(p.words).map(function (k) { return Object.assign({ key: k }, p.words[k]); })
+        .sort(function (a, b) { return (a.box - b.box) || ((b.wrong || 0) - (a.wrong || 0)); });
+      return '<div class="card"><h3>🌼 Word Garden ' + ui.esc(p.name) + '</h3>' +
+        '<p class="small muted">Kata diurutkan dari yang paling sulit. Hapus hanya kata yang salah simpan (misalnya salah ketik); kata sulit sebaiknya tetap dilatih.</p>' +
+        (list.length ? '<details><summary class="small"><b>Lihat ' + list.length + ' kata</b></summary><ul class="word-admin">' +
+          list.map(function (w) {
+            return '<li><span>' + plants[w.box] + ' <b>' + ui.esc(w.w) + '</b> <small class="muted">' + ui.esc(w.id || w.def || '') + ' · ✅ ' + (w.right || 0) + ' ❌ ' + (w.wrong || 0) + '</small></span>' +
+              '<button class="link danger" data-delw="' + ui.esc(w.key) + '">Remove</button></li>';
+          }).join('') + '</ul></details>' : '<p class="muted small">Belum ada kata.</p>') +
+        '</div>';
+    }
+    ui.$all('[data-delw]').forEach(function (b) {
+      b.onclick = function () {
+        const w = p.words[b.dataset.delw];
+        if (!w || !confirm('Hapus kata "' + w.w + '" dari Word Garden ' + p.name + '?')) return;
+        delete p.words[b.dataset.delw];
+        S.save();
+        ui.toast('Kata dihapus');
+        App.views.parent();
+      };
+    });
 
     ui.$('#export').onclick = function () {
       const blob = new Blob([S.exportJson()], { type: 'application/json' });

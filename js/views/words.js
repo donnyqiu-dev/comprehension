@@ -77,12 +77,9 @@
       '<p class="def">' + ui.esc(w.def) + '</p>' + (w.id ? '<p class="indo">🇮🇩 ' + ui.esc(w.id) + '</p>' : '') +
       (w.ex ? '<p class="ex">“' + ui.esc(w.ex) + '”</p>' : '') +
       '<p class="small muted">From: ' + ui.esc(w.source || '-') + ' · ✅ ' + w.right + ' ❌ ' + w.wrong + ' · ' + PLANT_NAMES[w.box] + '</p>' +
-      '<div class="row gap"><button class="btn danger small" data-del>Remove</button><button class="btn" data-close>Close</button></div></div>');
+      '<div class="row gap"><button class="btn primary" data-close>Close</button></div></div>');
+    // Removing words lives in the Parent area, so hard words cannot simply be deleted.
     ui.$('[data-say]', m.el).onclick = function () { ui.sayWord(w.w, { then: w.ex }); };
-    ui.$('[data-del]', m.el).onclick = function () {
-      if (!confirm('Hapus kata "' + w.w + '"?')) return;
-      delete p.words[key]; S.save(); m.close(); App.views.words();
-    };
     ui.sayWord(w.w);
   }
 

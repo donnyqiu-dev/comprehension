@@ -406,6 +406,8 @@ button.shop-item { cursor: pointer; }
 .writing p { margin: 2px 0; }
 .hist { padding-left: 18px; margin: 4px 0; font-size: .9rem; }
 .custom-list { margin-top: 12px; }
+.word-admin { list-style: none; padding: 0; margin: 8px 0 0; max-height: 360px; overflow: auto; }
+.word-admin li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
 .custom-list li { margin: 4px 0; }
 .file-btn { cursor: pointer; margin: 0; }
 .builder label { flex: 1; min-width: 140px; }
