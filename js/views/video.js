@@ -168,7 +168,9 @@
       const tl = ui.$('#timeline');
       if (!tl) return;
       if (!d) { tl.innerHTML = ''; return; }
+      const cur = state.dragT != null ? state.dragT : (state.player && !state.inAd ? state.player.time() : 0);
       tl.innerHTML = '<div class="tl-watched" style="width:' + (100 * state.maxWatched / d) + '%"></div>' +
+        '<div class="tl-head" style="left:' + Math.min(100, 100 * cur / d) + '%"></div>' +
         qs.map(function (q) {
           const pos = q.t < 0 ? 100 : Math.min(100, 100 * q.t / d);
           return '<span class="tl-q ' + (q.answered ? 'done' : '') + '" style="left:' + pos + '%" title="' + fmt(q.t) + '">' + (q.answered ? '✓' : '?') + '</span>';
@@ -196,6 +198,25 @@
       if (btn) btn.textContent = pl.playing() ? '⏸' : '▶';
       const vt = ui.$('#vtime');
       if (vt) vt.textContent = state.inAd ? '📺 Ad · Iklan' : fmt(pl.time()) + ' / ' + fmt(pl.duration() || 0);
+      drawTimeline();
+    }
+
+    /* Go back to an already-watched point. If a question is open it is closed and will be
+       asked again when the video reaches it (same as "Watch that part again"). */
+    function rewindTo(t) {
+      const pl = state.player;
+      if (!pl) return;
+      t = Math.max(0, Math.min(t, state.maxWatched));
+      const wasAsking = !!state.asking;
+      if (wasAsking) {
+        ui.$('#question-box').innerHTML = '';
+        state.asking = null;
+        cover(false);
+      }
+      state.ended = false; // end questions are asked again when the end is reached
+      pl.seek(t);
+      if (wasAsking) pl.play();
+      drawTimeline();
     }
 
     function wireControls() {
@@ -232,16 +253,41 @@
       ui.$('#player-mount').addEventListener('click', function () {
         bar.querySelector('[data-c="play"]').click();
       });
-      // Clicking the timeline rewinds to any point already watched (never forward).
-      ui.$('#timeline').addEventListener('click', function (e) {
-        const pl = state.player;
-        const d = pl ? pl.duration() : 0;
-        if (!d || !isFinite(d) || state.asking) return;
-        const r = this.getBoundingClientRect();
-        const t = d * (e.clientX - r.left) / r.width;
-        if (t > state.maxWatched + 0.5) { nag('⛔ Bagian itu belum ditonton.'); return; }
-        pl.seek(Math.max(0, t));
+      // Click or drag the timeline to rewind to any point already watched (never forward).
+      const tl = ui.$('#timeline');
+      let lastSeek = 0;
+      function timeAt(e) {
+        const d = state.player ? state.player.duration() : 0;
+        if (!d || !isFinite(d)) return null;
+        const r = tl.getBoundingClientRect();
+        let t = d * Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+        if (t > state.maxWatched + 0.5) { nag('⛔ Bagian itu belum ditonton.'); t = state.maxWatched; }
+        return t;
+      }
+      tl.addEventListener('pointerdown', function (e) {
+        if (!state.player || state.inAd) return;
+        const t = timeAt(e);
+        if (t == null) return;
+        tl.setPointerCapture(e.pointerId);
+        state.dragT = t;
+        drawTimeline();
       });
+      tl.addEventListener('pointermove', function (e) {
+        if (state.dragT == null) return;
+        const t = timeAt(e);
+        if (t == null) return;
+        state.dragT = t;
+        drawTimeline();
+        if (!state.asking && Date.now() - lastSeek > 200) { lastSeek = Date.now(); state.player.seek(t); }
+      });
+      function endDrag() {
+        if (state.dragT == null) return;
+        const t = state.dragT;
+        state.dragT = null;
+        rewindTo(t);
+      }
+      tl.addEventListener('pointerup', endDrag);
+      tl.addEventListener('pointercancel', endDrag);
     }
 
     function setAd(on) {
@@ -268,15 +314,20 @@
       state.lastTick = now;
       const t = pl.time();
       const st = pl.state ? pl.state() : null;
-      const moved = state.lastT != null && Math.abs(t - state.lastT) > 0.05;
+      const delta = state.lastT != null ? t - state.lastT : 0;
       state.lastT = t;
+      // Time running steadily forward (not a seek jump) while the player is not "playing"
+      // for about a second means an ad. Seeks and buffering after a seek do not count.
+      const recentSeek = now - (state.seekAt || 0) < 2000;
+      const steady = !recentSeek && delta > 0.05 && delta < 1.2 && st !== 1 && st !== 2;
+      state.adStreak = steady ? (state.adStreak || 0) + 1 : 0;
 
       // YouTube ads: the player reports the ad's time (and sometimes the ad's video id) while
       // its state is not "playing". During an ad the video must be clickable (Skip button)
       // and our skip/question checks must wait, otherwise the ad time looks like a jump.
       if (v.source === 'youtube' && !state.asking) {
         const vid = pl.videoId && pl.videoId();
-        const adNow = (vid && vid !== v.youtubeId) || (moved && st !== 1 && st !== 2);
+        const adNow = (vid && vid !== v.youtubeId) || state.adStreak >= 4;
         if (adNow) setAd(true);
         else if (st === 1 || st === 2 || st === 0) setAd(false);
       }
@@ -389,14 +440,7 @@
         };
       }
       const rw = ui.$('#rewatch');
-      if (rw) rw.onclick = function () {
-        box.innerHTML = '';
-        state.asking = null;
-        cover(false);
-        // mark this question as waiting again, replay from the previous checkpoint
-        state.player.seek(Math.max(0, prevT));
-        state.player.play();
-      };
+      if (rw) rw.onclick = function () { rewindTo(prevT); };
       box.scrollIntoView({ behavior: 'smooth', block: 'start' });
       drawTimeline();
     }
@@ -486,6 +530,8 @@
       onError: onError
     }, { custom: true }).then(function (pl) {
       if (state.failed) return;
+      const rawSeek = pl.seek;
+      pl.seek = function (t) { state.seekAt = performance.now(); rawSeek(t); };
       state.player = pl;
       state.timer = setInterval(tick, 250);
     }).catch(function () {
