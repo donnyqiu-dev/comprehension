@@ -35,7 +35,7 @@ Setiap bacaan terdiri dari beberapa aktivitas yang saling terhubung (mirip 7 akt
 
 **Level adaptif (seperti ReadTheory):** 5 level (≈ kelas 4 sampai 8). Dua kali skor ≥80% pada percobaan pertama akan menaikkan level. Dua kali skor <50% akan menurunkan level. Mengulang bacaan tetap boleh, tetapi XP-nya setengah dan tidak memengaruhi level.
 
-Tersedia **12 bacaan orisinal** (fiksi dan nonfiksi, banyak bertema Indonesia: Komodo, Borobudur, batik, Krakatau, orangutan, mangrove, terumbu karang, dll.) dengan total 70 soal.
+Tersedia **13 bacaan orisinal** (fiksi dan nonfiksi, banyak bertema Indonesia: Komodo, Borobudur, batik, Krakatau, orangutan, mangrove, terumbu karang, dll.) dengan total 75 soal (L1: 2, L2: 3, L3: 3, L4: 3, L5: 2).
 
 ### 🎬 Menonton video (gaya Edpuzzle)
 - Video **berhenti otomatis** di waktu tertentu untuk memberi pertanyaan (pilihan ganda atau jawaban tertulis)
