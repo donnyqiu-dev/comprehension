@@ -64,7 +64,7 @@
 
     const m = ui.modal(body());
     function wire() {
-      m.el.querySelector('[data-say]').onclick = function () { ui.speak(entry.w); };
+      m.el.querySelector('[data-say]').onclick = function () { ui.sayWord(entry.w); };
       const sv = m.el.querySelector('[data-save]');
       if (sv) sv.onclick = function () {
         const own = m.el.querySelector('#wp-own');
@@ -80,7 +80,7 @@
       };
     }
     wire();
-    ui.speak(entry.w);
+    ui.sayWord(entry.w);
 
     if (!vocabEntry) {
       lookup(word).then(function (res) {

@@ -18,6 +18,8 @@ Atau publikasikan gratis dengan **GitHub Pages** (Settings → Pages → Deploy 
 
 Browser yang disarankan: **Chrome/Edge** (mendukung suara text-to-speech dan pengenalan suara untuk latihan bicara).
 
+**Suara:** pelafalan kata memakai **rekaman suara manusia asli** (Wiktionary, lewat dictionaryapi.dev) jika tersedia dan ada internet. Kalimat dibacakan oleh suara paling alami yang ada di perangkat (misalnya suara *Natural* di Microsoft Edge, suara *Google* di Chrome, atau suara *Enhanced* di iPhone/Mac). Suara dan kecepatannya bisa diganti dan dites di menu Parent → Settings.
+
 ## Fitur
 
 ### 📚 Membaca (gaya Eigo + ReadTheory)

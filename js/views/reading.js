@@ -122,7 +122,7 @@
           (i > 0 ? '<button class="btn" id="prev">←</button>' : '') +
           '<button class="btn primary" id="nx">' + (i < r.vocab.length - 1 ? 'Next word →' : 'Start reading 📖') + '</button></div></div>';
         ui.$('#flash').onclick = function () { this.classList.toggle('flipped'); ui.sfx.pop(); };
-        ui.$('#say').onclick = function () { ui.speak(v.w + '. ' + (v.ex || '')); };
+        ui.$('#say').onclick = function () { ui.sayWord(v.w, { then: v.ex }); };
         const pv = ui.$('#prev'); if (pv) pv.onclick = function () { i--; card(); };
         ui.$('#nx').onclick = function () {
           if (i < r.vocab.length - 1) { i++; card(); return; }
@@ -132,8 +132,9 @@
           if (added) { R.track('newword', added); ui.toast('🌱 ' + added + ' kata baru ditanam di Word Garden!'); }
           next();
         };
-        ui.speak(v.w);
+        ui.sayWord(v.w);
       }
+      ui.preloadWords(r.vocab.map(function (w) { return w.w; }));
       card();
     }
 
@@ -142,11 +143,11 @@
       stage.innerHTML =
         '<div class="card">' +
         '<div class="row between wrap"><p class="small muted">Tap kata mana saja untuk melihat artinya. Kata <span class="vocab">berwarna</span> = kosa kata penting.</p>' +
-        '<div class="row gap-s"><button class="btn small" id="aloud">🔊 Read to me</button><select id="rate" class="small-select" title="Kecepatan"><option value="0.7">🐢 Slow</option><option value="0.9">🙂 Normal</option><option value="1.05">🐇 Fast</option></select></div></div>' +
+        '<div class="row gap-s"><button class="btn small" id="aloud">🔊 Read to me</button><select id="rate" class="small-select" title="Kecepatan"><option value="0.7">🐢 Slow</option><option value="0.85">🙂 Normal</option><option value="1">🐇 Fast</option></select></div></div>' +
         passageHtml() +
         '<div class="row center"><button class="btn primary big" id="toquiz">I finished reading ✅</button></div></div>';
       const rate = ui.$('#rate');
-      rate.value = String(p.settings.ttsRate >= 1 ? 1.05 : p.settings.ttsRate <= 0.75 ? 0.7 : 0.9);
+      rate.value = String(p.settings.ttsRate >= 0.95 ? 1 : p.settings.ttsRate <= 0.75 ? 0.7 : 0.85);
       wirePassage(ui.$('#passage'));
       let reading = false;
       ui.$('#aloud').onclick = function () {
@@ -288,7 +289,7 @@
       ui.$all('.mbtn', stage).forEach(function (b) {
         b.onclick = function () {
           if (b.classList.contains('ok')) return;
-          if (b.dataset.side === 'l') ui.speak(b.dataset.k);
+          if (b.dataset.side === 'l') ui.sayWord(b.dataset.k);
           if (!sel || sel.dataset.side === b.dataset.side) {
             ui.$all('.mbtn.sel', stage).forEach(function (x) { x.classList.remove('sel'); });
             sel = b; b.classList.add('sel'); return;

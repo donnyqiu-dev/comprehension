@@ -78,12 +78,12 @@
       (w.ex ? '<p class="ex">“' + ui.esc(w.ex) + '”</p>' : '') +
       '<p class="small muted">From: ' + ui.esc(w.source || '-') + ' · ✅ ' + w.right + ' ❌ ' + w.wrong + ' · ' + PLANT_NAMES[w.box] + '</p>' +
       '<div class="row gap"><button class="btn danger small" data-del>Remove</button><button class="btn" data-close>Close</button></div></div>');
-    ui.$('[data-say]', m.el).onclick = function () { ui.speak(w.w + '. ' + (w.ex || '')); };
+    ui.$('[data-say]', m.el).onclick = function () { ui.sayWord(w.w, { then: w.ex }); };
     ui.$('[data-del]', m.el).onclick = function () {
       if (!confirm('Hapus kata "' + w.w + '"?')) return;
       delete p.words[key]; S.save(); m.close(); App.views.words();
     };
-    ui.speak(w.w);
+    ui.sayWord(w.w);
   }
 
   /* ---------------- Games ---------------- */
@@ -157,8 +157,8 @@
         (w.ex ? '<p class="ex small">“' + ui.esc(w.ex) + '”</p>' : '') +
         '<div class="choices">' + opts.map(function (o) { return '<button class="choice" data-v="' + ui.esc(o) + '">' + ui.esc(o) + '</button>'; }).join('') + '</div>' +
         '<div id="fb"></div></div>';
-      ui.$('#say').onclick = function () { ui.speak(w.w); };
-      ui.speak(w.w);
+      ui.$('#say').onclick = function () { ui.sayWord(w.w); };
+      ui.sayWord(w.w);
       ui.$all('.choice', box).forEach(function (b) {
         b.onclick = function () {
           const ok = b.dataset.v === correct;
@@ -194,7 +194,7 @@
         if (!sel || sel.dataset.side === b.dataset.side) {
           ui.$all('.mbtn.sel', box).forEach(function (x) { x.classList.remove('sel'); });
           sel = b; b.classList.add('sel');
-          if (b.dataset.side === 'l') ui.speak(b.textContent);
+          if (b.dataset.side === 'l') ui.sayWord(b.textContent);
           return;
         }
         if (sel.dataset.k === b.dataset.k) {
@@ -242,7 +242,7 @@
         '<input id="sp" class="spell-input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="type here…">' +
         '<p class="hint" id="hint">' + ui.esc(w.w[0]) + '<span>' + '_ '.repeat(w.w.length - 1) + '</span></p>' +
         '<div class="row center gap"><button class="btn" id="hintb">💡 Hint</button><button class="btn primary" id="go">Check</button></div><div id="fb"></div></div>';
-      const say = function () { ui.speak(w.w, { rate: 0.7 }); };
+      const say = function () { ui.sayWord(w.w, { slow: true }); };
       ui.$('#say').onclick = say; say();
       const inp = ui.$('#sp'); inp.focus();
       ui.$('#hintb').onclick = function () { hint = Math.min(w.w.length - 1, hint + 1); ui.$('#hint').innerHTML = ui.esc(w.w.slice(0, hint)) + '<span>' + '_ '.repeat(w.w.length - hint) + '</span>'; };

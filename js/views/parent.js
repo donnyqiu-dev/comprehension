@@ -104,7 +104,10 @@
       '<div class="card"><h3>⚙️ Settings</h3>' +
       '<label>Daily goal<select id="goal">' + [30, 50, 80, 120].map(function (g) { return '<option value="' + g + '"' + (p.settings.dailyGoal === g ? ' selected' : '') + '>' + g + ' XP ' + ({ 30: '(santai ~10 min)', 50: '(biasa ~15 min)', 80: '(serius ~25 min)', 120: '(intens ~40 min)' })[g] + '</option>'; }).join('') + '</select></label>' +
       '<label>Reading level (manual)<select id="lvl">' + [1, 2, 3, 4, 5].map(function (l) { return '<option value="' + l + '"' + (p.readingLevel === l ? ' selected' : '') + '>' + App.LEVELS[l].name + ' ' + App.LEVELS[l].grade + '</option>'; }).join('') + '</select></label>' +
-      '<label>Voice speed<select id="rate">' + [[0.7, 'Slow'], [0.9, 'Normal'], [1.05, 'Fast']].map(function (r) { return '<option value="' + r[0] + '"' + (p.settings.ttsRate === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('') + '</select></label>' +
+      '<label>Voice speed / Kecepatan suara<select id="rate">' + [[0.7, 'Slow'], [0.85, 'Normal'], [1, 'Fast']].map(function (r) { return '<option value="' + r[0] + '"' + (p.settings.ttsRate === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('') + '</select></label>' +
+      '<label>Voice / Suara pembaca<div class="row gap-s"><select id="voice"></select><button class="btn small" id="test-voice" type="button">▶ Test</button></div></label>' +
+      '<p class="small muted">⭐ = suara yang lebih alami. Jika semua terdengar seperti robot, coba browser <b>Microsoft Edge</b> (suara "Natural") atau Chrome (suara "Google"). Di HP, pasang suara berkualitas tinggi di pengaturan Text-to-Speech perangkat.</p>' +
+      '<label class="check"><input type="checkbox" id="human"' + (p.settings.humanAudio !== false ? ' checked' : '') + '> Use real human recordings for words (butuh internet)</label>' +
       '<label class="check"><input type="checkbox" id="sound"' + (p.settings.sound ? ' checked' : '') + '> Sound effects</label>' +
       '<label class="check"><input type="checkbox" id="indo"' + (p.settings.showIndo ? ' checked' : '') + '> Show Indonesian meanings 🇮🇩</label>' +
       '<label class="check"><input type="checkbox" id="shield"> Give 1 Streak Shield 🧊 (hadiah dari orang tua)</label>' +
@@ -131,6 +134,29 @@
 
     function stat(big, label, sub) { return '<div class="card stat"><b>' + big + '</b><small>' + label + '</small>' + (sub ? '<small class="muted">' + sub + '</small>' : '') + '</div>'; }
 
+    function fillVoices() {
+      const sel = ui.$('#voice');
+      if (!sel) return;
+      const list = ui.listVoices();
+      sel.innerHTML = '<option value="">Automatic (best available)</option>' + list.map(function (v) {
+        return '<option value="' + ui.esc(v.uri) + '"' + (p.settings.voice === v.uri ? ' selected' : '') + '>' + (v.good ? '⭐ ' : '') + ui.esc(v.name) + ' (' + v.lang + ')</option>';
+      }).join('');
+    }
+    fillVoices();
+    if ('speechSynthesis' in window) {
+      speechSynthesis.addEventListener('voiceschanged', fillVoices);
+      App.shell.onLeave(function () { speechSynthesis.removeEventListener('voiceschanged', fillVoices); });
+    }
+    ui.$('#test-voice').onclick = function () {
+      const keep = { voice: p.settings.voice, rate: p.settings.ttsRate };
+      p.settings.voice = ui.$('#voice').value;
+      p.settings.ttsRate = Number(ui.$('#rate').value);
+      ui.speak('Hello! Komodo dragons are the largest lizards in the world. Let us read together.', {
+        onend: function () { p.settings.voice = keep.voice; p.settings.ttsRate = keep.rate; }
+      });
+      setTimeout(function () { p.settings.voice = keep.voice; p.settings.ttsRate = keep.rate; }, 100);
+    };
+
     ui.$('#switch').onchange = function () { S.switchProfile(this.value); App.shell.refreshTop(); App.views.parent(); };
     ui.$('#lock').onclick = function () { unlocked = false; location.hash = '#/'; };
     ui.$('#save-set').onclick = function () {
@@ -138,6 +164,8 @@
       const lv = Number(ui.$('#lvl').value);
       if (lv !== p.readingLevel) { p.levelHistory.push({ from: p.readingLevel, to: lv, at: Date.now(), manual: true }); p.readingLevel = lv; p.levelProgress = { up: 0, down: 0 }; }
       p.settings.ttsRate = Number(ui.$('#rate').value);
+      p.settings.voice = ui.$('#voice').value;
+      p.settings.humanAudio = ui.$('#human').checked;
       p.settings.sound = ui.$('#sound').checked;
       p.settings.showIndo = ui.$('#indo').checked;
       if (ui.$('#shield').checked) p.streak.freezes = Math.min(3, p.streak.freezes + 1);

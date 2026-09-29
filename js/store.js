@@ -49,7 +49,7 @@
       owned: [],
       equipped: { hat: null, glasses: null, bg: null },
       stats: { questionsRight: 0, questionsTotal: 0, perfect: 0, wordsReviewed: 0, speaking: 0, writing: 0, chests: 0 },
-      settings: { dailyGoal: 50, ttsRate: 0.9, sound: true, showIndo: true },
+      settings: { dailyGoal: 50, ttsRate: 0.85, voice: '', humanAudio: true, sound: true, showIndo: true },
       history: []
     };
   }
@@ -81,6 +81,8 @@
       ['settings', 'stats', 'streak', 'equipped', 'pet'].forEach(function (k) {
         p[k] = Object.assign({}, fresh[k], p[k]);
       });
+      if (p.settings.ttsRate === 0.9) p.settings.ttsRate = 0.85; // old default was a bit fast
+      if (p.settings.ttsRate === 1.05) p.settings.ttsRate = 1;
     });
     out.version = VERSION;
     return out;

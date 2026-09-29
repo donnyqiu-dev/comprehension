@@ -105,34 +105,150 @@
     pop: function () { beep([440], 0.06); }
   };
 
-  /* ---------- Text to speech ---------- */
-  let voice = null;
-  function pickVoice() {
+  /* ---------- Text to speech ----------
+     Browsers ship very different voices. We rank them so natural/neural voices win over
+     old robotic ones, speak long text sentence by sentence (natural pauses, and Chrome
+     otherwise cuts off long utterances), and play real human recordings for single words
+     when they are available online. */
+  let voices = [];
+  let speakToken = 0;
+
+  function voiceScore(v) {
+    if (!/^en/i.test(v.lang)) return -1;
+    const n = v.name;
+    let s = 0;
+    if (/natural|neural|online/i.test(n)) s += 60;           // Edge / Windows neural voices
+    if (/enhanced|premium|siri/i.test(n)) s += 50;            // Apple high quality voices
+    if (/^Google (US|UK) English/i.test(n)) s += 40;          // Chrome online voices
+    if (/Samantha|Ava|Allison|Susan|Zoe|Karen|Daniel|Serena|Moira|Tessa/i.test(n)) s += 30;
+    if (/en[-_](US|GB)/i.test(v.lang)) s += 10;
+    if (/espeak|compact|Zira|David|Mark|Hazel|George|Fred|Albert|Bad News|Bells|Boing|Bubbles|Cellos|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Junior|Ralph|Kathy|Princess|Grandma|Grandpa|Eddy|Flo|Reed|Rocko|Sandy|Shelley/i.test(n)) s -= 40;
+    return s;
+  }
+
+  function loadVoices() {
     if (!('speechSynthesis' in window)) return;
-    const vs = speechSynthesis.getVoices();
-    voice = vs.find(function (v) { return /en[-_]GB/i.test(v.lang) && /female|Google UK/i.test(v.name); }) ||
-      vs.find(function (v) { return /en[-_](US|GB)/i.test(v.lang); }) ||
-      vs.find(function (v) { return /^en/i.test(v.lang); }) || null;
+    voices = speechSynthesis.getVoices().filter(function (v) { return voiceScore(v) >= 0 || /^en/i.test(v.lang); })
+      .sort(function (a, b) { return voiceScore(b) - voiceScore(a); });
   }
   if ('speechSynthesis' in window) {
-    pickVoice();
-    speechSynthesis.onvoiceschanged = pickVoice;
+    loadVoices();
+    speechSynthesis.addEventListener('voiceschanged', loadVoices);
   }
+
+  function currentVoice() {
+    const p = App.store.profile();
+    const want = p && p.settings.voice;
+    return (want && voices.find(function (v) { return v.voiceURI === want; })) || voices[0] || null;
+  }
+
+  /* Google's online voices already run a little fast, so slow them slightly. */
+  function rateFor(v, base) {
+    return Math.max(0.5, Math.min(1.3, base * (v && /^Google/i.test(v.name) ? 0.92 : 1)));
+  }
+
+  function splitSentences(text) {
+    const out = [];
+    const re = /[^.!?]+[.!?]+["'”’)]*\s*|[^.!?]+$/g;
+    let m;
+    while ((m = re.exec(text))) { if (m[0].trim()) out.push({ text: m[0], offset: m.index }); }
+    return out.length ? out : [{ text: text, offset: 0 }];
+  }
+
   function speak(text, opts) {
     opts = opts || {};
+    stopSpeaking();
     if (!('speechSynthesis' in window)) { toast('🔇 Browser ini belum mendukung suara.'); return null; }
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
+    const token = ++speakToken;
     const p = App.store.profile();
-    u.rate = opts.rate || (p ? p.settings.ttsRate : 0.9);
-    u.lang = 'en-US';
-    if (voice) { u.voice = voice; u.lang = voice.lang; }
-    if (opts.onboundary) u.onboundary = opts.onboundary;
-    if (opts.onend) u.onend = opts.onend;
-    speechSynthesis.speak(u);
-    return u;
+    const v = currentVoice();
+    const rate = rateFor(v, opts.rate || (p ? p.settings.ttsRate : 0.85));
+    const parts = splitSentences(String(text));
+    parts.forEach(function (part, i) {
+      const u = new SpeechSynthesisUtterance(part.text.trim());
+      u.rate = rate;
+      u.pitch = 1;
+      u.lang = v ? v.lang : 'en-US';
+      if (v) u.voice = v;
+      if (opts.onboundary) u.onboundary = function (e) {
+        if (token !== speakToken) return;
+        opts.onboundary({ name: e.name, charIndex: part.offset + (part.text.length - part.text.trimStart().length) + e.charIndex });
+      };
+      if (i === parts.length - 1 && opts.onend) u.onend = function () { if (token === speakToken) opts.onend(); };
+      speechSynthesis.speak(u);
+    });
+    return true;
   }
-  function stopSpeaking() { if ('speechSynthesis' in window) speechSynthesis.cancel(); }
+
+  /* Real human pronunciation for single words (from the free dictionary API, which links
+     to Wiktionary/Commons recordings). Falls back to the best TTS voice. */
+  const AUDIO_KEY = 'rq-word-audio';
+  let audioCache = {};
+  try { audioCache = JSON.parse(localStorage.getItem(AUDIO_KEY) || '{}'); } catch (e) { audioCache = {}; }
+  let currentAudio = null;
+
+  function wordAudioUrl(word) {
+    const w = String(word).trim().toLowerCase();
+    if (!/^[a-z][a-z'-]*$/.test(w)) return Promise.resolve(null);
+    if (audioCache[w] !== undefined) return Promise.resolve(audioCache[w] || null);
+    return fetch('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(w))
+      .then(function (r) {
+        if (r.status === 404) return [];
+        if (!r.ok) throw new Error('lookup failed');
+        return r.json();
+      })
+      .then(function (data) {
+        const urls = [];
+        (Array.isArray(data) ? data : []).forEach(function (entry) {
+          (entry.phonetics || []).forEach(function (ph) { if (ph.audio) urls.push(ph.audio.replace(/^\/\//, 'https://')); });
+        });
+        const url = urls.find(function (u) { return /-us\.mp3$/i.test(u); }) || urls.find(function (u) { return /-(uk|au|ca)\.mp3$/i.test(u); }) || urls[0] || '';
+        audioCache[w] = url;
+        try { localStorage.setItem(AUDIO_KEY, JSON.stringify(audioCache)); } catch (e) { /* cache is optional */ }
+        return url || null;
+      })
+      .catch(function () { return null; }); // offline: do not cache, try again later
+  }
+
+  function sayWord(word, opts) {
+    opts = opts || {};
+    stopSpeaking();
+    const token = ++speakToken;
+    const p = App.store.profile();
+    function afterWord(tok) {
+      if (opts.then) setTimeout(function () { if (tok === speakToken) speak(opts.then); }, 350);
+    }
+    function tts() {
+      speak(word + '.', {
+        rate: (p ? p.settings.ttsRate : 0.85) * 0.85 * (opts.slow ? 0.8 : 1),
+        onend: function () { afterWord(speakToken); }
+      });
+    }
+    if (p && p.settings.humanAudio === false) { tts(); return; }
+    const timeout = new Promise(function (res) { setTimeout(function () { res('timeout'); }, 1500); });
+    Promise.race([wordAudioUrl(word), timeout]).then(function (url) {
+      if (token !== speakToken) return;
+      if (!url || url === 'timeout') { tts(); return; }
+      const a = new Audio(url);
+      currentAudio = a;
+      if (opts.slow) { a.playbackRate = 0.75; a.preservesPitch = true; }
+      a.onended = function () { if (token === speakToken) afterWord(token); };
+      a.play().catch(function () { if (token === speakToken) tts(); });
+    });
+  }
+
+  /* Look up recordings ahead of time so the first tap plays instantly. */
+  function preloadWords(words) {
+    words.forEach(function (w, i) { setTimeout(function () { wordAudioUrl(w); }, i * 150); });
+  }
+
+  function stopSpeaking() {
+    speakToken++;
+    if (currentAudio) { try { currentAudio.pause(); } catch (e) { /* ignore */ } currentAudio = null; }
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+  }
+
+  function listVoices() { loadVoices(); return voices.map(function (v) { return { uri: v.voiceURI, name: v.name, lang: v.lang, good: voiceScore(v) >= 40 }; }); }
 
   function shuffle(a) {
     a = a.slice();
@@ -145,5 +261,5 @@
 
   function countWords(s) { return (s.trim().match(/[A-Za-z']+/g) || []).length; }
 
-  App.ui = { esc: esc, $: $, $all: $all, toast: toast, modal: modal, confetti: confetti, sfx: sfx, speak: speak, stopSpeaking: stopSpeaking, shuffle: shuffle, countWords: countWords };
+  App.ui = { esc: esc, $: $, $all: $all, toast: toast, modal: modal, confetti: confetti, sfx: sfx, speak: speak, sayWord: sayWord, preloadWords: preloadWords, listVoices: listVoices, stopSpeaking: stopSpeaking, shuffle: shuffle, countWords: countWords };
 })();
