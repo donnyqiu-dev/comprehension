@@ -62,7 +62,7 @@
         const player = new YT.Player('ytp', {
           videoId: v.youtubeId,
           host: 'https://www.youtube-nocookie.com',
-          playerVars: { rel: 0, modestbranding: 1, playsinline: 1, iv_load_policy: 3, cc_load_policy: 1, cc_lang_pref: 'en', hl: 'en' },
+          playerVars: { rel: 0, modestbranding: 1, playsinline: 1, disablekb: 1, iv_load_policy: 3, cc_load_policy: 1, cc_lang_pref: 'en', hl: 'en' },
           events: {
             onReady: function () { resolve(api); events.onReady(); },
             onStateChange: function (e) { if (e.data === YT.PlayerState.ENDED) events.onEnded(); },
@@ -152,14 +152,37 @@
       box._t = setTimeout(function () { box.hidden = true; }, 6000);
     }
 
+    function nag(msg) {
+      const now = Date.now();
+      if (now - (state.lastNag || 0) < 3000) return;
+      state.lastNag = now;
+      ui.toast(msg);
+    }
+
     function tick() {
       const pl = state.player;
-      if (!pl || state.asking) return;
+      if (!pl) return;
+      const now = performance.now();
+      const dt = state.lastTick ? (now - state.lastTick) / 1000 : 0.25;
+      state.lastTick = now;
       const t = pl.time();
-      // Prevent skipping ahead (small tolerance for normal playback jitter)
-      if (t > state.maxWatched + 2.5) {
+
+      // While a question is open the video must stay paused (the YouTube controls can still be clicked).
+      if (state.asking) {
+        if (pl.playing() || t > state.maxWatched + 1) {
+          pl.pause();
+          if (t > state.maxWatched + 1) pl.seek(state.maxWatched);
+          nag('✋ Jawab pertanyaannya dulu ya, lalu tekan Continue.');
+        }
+        return;
+      }
+
+      // Prevent skipping ahead. Allowed progress is tied to real elapsed time (up to 2x speed),
+      // so dragging the timeline forward in small steps does not slip through either.
+      const allowed = state.maxWatched + Math.max(1.5, dt * 2.5);
+      if (t > allowed) {
         pl.seek(state.maxWatched);
-        ui.toast('⛔ Tidak bisa loncat ke depan. Tonton dulu ya!');
+        nag('⛔ Tidak bisa loncat ke depan. Tonton dulu ya!');
         return;
       }
       if (pl.playing()) state.maxWatched = Math.max(state.maxWatched, t);
@@ -263,6 +286,14 @@
 
     function onEnded() {
       if (state.ended) return;
+      // Jumping straight to the end also fires "ended": send the child back instead.
+      const d = state.player ? state.player.duration() : 0;
+      if (state.player && d && state.maxWatched < d - 3) {
+        state.player.seek(state.maxWatched);
+        state.player.play();
+        nag('⛔ Tidak bisa loncat ke akhir. Tonton dulu ya!');
+        return;
+      }
       state.ended = true;
       state.maxWatched = state.player ? state.player.duration() : state.maxWatched;
       if (!state.asking) askEndQuestions();
