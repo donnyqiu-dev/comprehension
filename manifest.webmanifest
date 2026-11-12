@@ -1,0 +1,11 @@
+{
+  "name": "ReadQuest – English Reading Adventure",
+  "short_name": "ReadQuest",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fdf8ff",
+  "theme_color": "#6d28d9",
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
