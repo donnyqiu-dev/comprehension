@@ -37,6 +37,12 @@ Setiap bacaan terdiri dari beberapa aktivitas yang saling terhubung (mirip 7 akt
 
 Tersedia **13 bacaan orisinal** (fiksi dan nonfiksi, banyak bertema Indonesia: Komodo, Borobudur, batik, Krakatau, orangutan, mangrove, terumbu karang, dll.) dengan total 75 soal (L1: 2, L2: 3, L3: 3, L4: 3, L5: 2).
 
+**Level 6 · Year 6 (UK)**: 6 bacaan tambahan yang mengikuti format buku *KS2 Year 6 Targeted Comprehension*. Setiap bacaan punya kotak pengantar, glosarium, nomor paragraf, 1 *warm up question*, soal bernilai total **8 marks**, dan refleksi *Now Try This*. Genrenya: fantasi, memoar, puisi bebas, artikel fitur, buku harian bersejarah (imajinatif), dan naskah drama. Semua teks orisinal. Jenis soal:
+- **Pilihan ganda**: arti kata, jenis majas, jenis teks.
+- **Find and copy**: anak menandai kutipan langsung di teks (ketuk kata pertama dan terakhir), lalu dinilai otomatis.
+- **Fakta atau opini**: tabel, dinilai otomatis (semua benar = nilai penuh, satu salah = kurang 1).
+- **Jawaban tertulis**: dibandingkan dengan contoh jawaban, lalu anak menilai sendiri (✅ / 🟡 / ❌). Jawaban tersimpan untuk dibaca orang tua/guru. Hanya soal yang dinilai otomatis yang menentukan naik/turun level.
+
 ### 🎬 Menonton video (gaya Edpuzzle)
 - Video **berhenti otomatis** di waktu tertentu untuk memberi pertanyaan (pilihan ganda atau jawaban tertulis)
 - **Tidak bisa loncat ke depan**: kontrol YouTube diganti tombol aplikasi di bawah video (play, mundur 10 detik, kecepatan, subtitle, layar penuh), dan timeline hanya bisa diklik untuk mengulang bagian yang sudah ditonton. Ada juga tombol *Watch that part again*. Area video tidak bisa diklik (link YouTube seperti *More videos* dan logo tidak bisa dibuka); klik di area video hanya memutar atau menjeda. Saat pertanyaan muncul, video ditutup sementara dengan layar "Answer the question below" supaya anak fokus ke soal. Video juga dijeda otomatis saat anak pindah tab.

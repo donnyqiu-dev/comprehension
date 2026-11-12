@@ -22,14 +22,14 @@
     const re = /[A-Za-z][A-Za-z'’-]*/g;
     let last = 0, m;
     while ((m = re.exec(text))) {
-      html += ui.esc(text.slice(last, m.index));
+      html += ui.esc(text.slice(last, m.index)).replace(/\n/g, '<br>'); // poems keep their line breaks
       const word = m[0];
       const key = word.toLowerCase().replace(/’/g, '\'');
       const v = vocabIndex[key];
       html += '<span class="w' + (v ? ' vocab' : '') + '" data-p="' + pIndex + '" data-i="' + m.index + '" data-w="' + ui.esc(v ? v.w : word) + '">' + ui.esc(word) + '</span>';
       last = m.index + word.length;
     }
-    html += ui.esc(text.slice(last));
+    html += ui.esc(text.slice(last)).replace(/\n/g, '<br>');
     return html;
   }
 

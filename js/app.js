@@ -79,7 +79,7 @@
       '<label>Your name / Nama kamu<input id="np-name" maxlength="20" placeholder="e.g. Sari" autocomplete="off"></label>' +
       '<div class="avatar-pick">' + AVATARS.map(function (a, i) { return '<button class="av' + (i === 0 ? ' sel' : '') + '" data-av="' + a + '">' + a + '</button>'; }).join('') + '</div>' +
       '<label>Starting level / Level awal' +
-      '<select id="np-level">' + [1, 2, 3, 4, 5].map(function (l) { return '<option value="' + l + '"' + (l === 2 ? ' selected' : '') + '>' + App.LEVELS[l].name + ' (' + App.LEVELS[l].grade + ')</option>'; }).join('') + '</select></label>' +
+      '<select id="np-level">' + App.levelIds().map(function (l) { return '<option value="' + l + '"' + (l === 2 ? ' selected' : '') + '>' + App.LEVELS[l].name + ' (' + App.LEVELS[l].grade + ')</option>'; }).join('') + '</select></label>' +
       '<p class="small muted">Tidak yakin? Pilih Level 2. Level akan naik/turun otomatis sesuai hasil kuis (seperti ReadTheory).</p>' +
       '<button class="btn primary big" id="np-go">Start adventure 🚀</button>' +
       '</div>' +

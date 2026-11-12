@@ -103,7 +103,7 @@
 
       '<div class="card"><h3>⚙️ Settings</h3>' +
       '<label>Daily goal<select id="goal">' + [30, 50, 80, 120].map(function (g) { return '<option value="' + g + '"' + (p.settings.dailyGoal === g ? ' selected' : '') + '>' + g + ' XP ' + ({ 30: '(santai ~10 min)', 50: '(biasa ~15 min)', 80: '(serius ~25 min)', 120: '(intens ~40 min)' })[g] + '</option>'; }).join('') + '</select></label>' +
-      '<label>Reading level (manual)<select id="lvl">' + [1, 2, 3, 4, 5].map(function (l) { return '<option value="' + l + '"' + (p.readingLevel === l ? ' selected' : '') + '>' + App.LEVELS[l].name + ' ' + App.LEVELS[l].grade + '</option>'; }).join('') + '</select></label>' +
+      '<label>Reading level (manual)<select id="lvl">' + App.levelIds().map(function (l) { return '<option value="' + l + '"' + (p.readingLevel === l ? ' selected' : '') + '>' + App.LEVELS[l].name + ' ' + App.LEVELS[l].grade + '</option>'; }).join('') + '</select></label>' +
       '<label>Voice speed / Kecepatan suara<select id="rate">' + [[0.7, 'Slow'], [0.85, 'Normal'], [1, 'Fast']].map(function (r) { return '<option value="' + r[0] + '"' + (p.settings.ttsRate === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('') + '</select></label>' +
       '<label>Voice / Suara pembaca<div class="row gap-s"><select id="voice"></select><button class="btn small" id="test-voice" type="button">▶ Test</button></div></label>' +
       '<p class="small muted">⭐ = suara yang lebih alami. Jika semua terdengar seperti robot, coba browser <b>Microsoft Edge</b> (suara "Natural") atau Chrome (suara "Google"). Di HP, pasang suara berkualitas tinggi di pengaturan Text-to-Speech perangkat.</p>' +
@@ -258,7 +258,11 @@
       seq: 'Perhatikan kata urutan: first, next, then, after, finally.',
       purpose: 'Tanyakan: penulis ingin memberi info, menghibur, atau membujuk?',
       cause: 'Cari kata because, so, as a result, since.',
-      video: 'Nyalakan subtitle (CC) dan gunakan tombol "Watch again".'
+      video: 'Nyalakan subtitle (CC) dan gunakan tombol "Watch again".',
+      genre: 'Bahas ciri jenis teks: cerita, puisi, artikel, buku harian, naskah drama.',
+      language: 'Tanyakan "Kenapa penulis memilih kata ini? Apa yang kamu bayangkan?" (simile, metafora, personifikasi).',
+      structure: 'Perhatikan susunan teks: judul, paragraf, huruf kapital, akhir yang menggantung.',
+      fact: 'Fakta bisa dibuktikan; opini adalah pendapat. Cari kata seperti "beautiful", "best", "I think".'
     })[k] || '';
   }
 })();

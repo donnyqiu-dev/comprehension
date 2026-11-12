@@ -35,7 +35,7 @@
       '</div><small class="muted">Skor ≥80% di levelmu 2x → naik level</small></div>' +
       '</div>' +
       '<div class="chips">' +
-      [['mine', '⭐ For me'], ['all', 'All']].concat([1, 2, 3, 4, 5].map(function (l) { return [String(l), 'L' + l]; })).map(function (f) {
+      [['mine', '⭐ For me'], ['all', 'All']].concat(App.levelIds().map(function (l) { return [String(l), 'L' + l]; })).map(function (f) {
         return '<button class="chipbtn ' + (filter.level === f[0] ? 'on' : '') + '" data-lv="' + f[0] + '">' + f[1] + '</button>';
       }).join('') + '</div>' +
       '<div class="chips">' + topics.map(function (t) {
@@ -81,16 +81,26 @@
       }).join('') + '</div>';
     }
 
+    /* Text with numbered paragraphs, plus (for Year 6 style texts) an intro box, glossary and source line. */
     function passageHtml() {
-      return '<article class="passage" id="passage">' + r.text.map(function (para, i) {
-        return '<p data-pi="' + i + '">' + C.tokenize(para, vIdx, i) + '</p>';
-      }).join('') + '</article>';
+      return '<article class="passage" id="passage">' +
+        (r.intro ? '<div class="intro-box">' + ui.esc(r.intro) + '</div>' : '') +
+        (r.heading ? '<h3 class="text-heading">' + ui.esc(r.heading) + '</h3>' : '') +
+        r.text.map(function (para, i) {
+          return '<p data-pi="' + i + '"' + (r.poem ? ' class="verse"' : '') + '><span class="pnum" aria-hidden="true">' + (i + 1) + '</span>' + C.tokenize(para, vIdx, i) + '</p>';
+        }).join('') +
+        (r.source ? '<p class="source">' + ui.esc(r.source) + '</p>' : '') +
+        (r.glossary && r.glossary.length ? '<div class="glossary"><b>Glossary</b>' + r.glossary.map(function (g) {
+          return '<span><i>' + ui.esc(g.w) + '</i> — ' + ui.esc(g.def) + '</span>';
+        }).join('') + '</div>' : '') +
+        '</article>';
     }
 
     function wirePassage(root) {
       root.addEventListener('click', function (e) {
         const w = e.target.closest('.w');
         if (!w) return;
+        if (st.copy) { st.copy.tap(w); return; } // "find and copy" question: tapping selects words
         const v = vIdx[w.textContent.toLowerCase().replace(/’/g, '\'')];
         C.wordPopup(v ? v.w : w.textContent, v || null, r.title);
       });
@@ -175,58 +185,217 @@
       ui.$('#toquiz').onclick = next;
     }
 
-    /* 3. Comprehension quiz, one question at a time with explanations */
+    /* 3. Comprehension quiz, one question at a time.
+       Kinds (q.kind): 'mc' (default, multiple choice), 'copy' (find and copy a phrase from the text),
+       'factop' (fact or opinion table) and 'open' (written answer, compared with an example answer).
+       q.marks (default 1) and q.warm (warm up question) follow the Year 6 question books. */
+    function marksOf(q) { return q.marks || 1; }
+    function noteAnswer(q, got, auto, extra) {
+      const m = marksOf(q);
+      st.answers.push(Object.assign({ type: q.type, kind: q.kind || 'mc', marks: m, got: got, auto: auto, ok: got === m }, extra || {}));
+      if (auto) {
+        p.skills[q.type] = p.skills[q.type] || { c: 0, t: 0 };
+        p.skills[q.type].t++;
+        p.stats.questionsTotal++;
+        if (got === m) { p.skills[q.type].c++; p.stats.questionsRight++; R.track('correct', 1); }
+      }
+      S.save();
+    }
+    function normPhrase(x) {
+      return String(x).toLowerCase().replace(/[’‘]/g, '\'').replace(/[“”"]/g, '').replace(/[^a-z0-9'\s-]/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
     function stepQuiz(stage) {
       const q = r.questions[st.qi];
+      const kind = q.kind || 'mc';
       const t = App.QTYPES[q.type] || App.QTYPES.detail;
+      const m = marksOf(q);
+      const last = st.qi === r.questions.length - 1;
+      st.copy = null;
+      let body = '';
+      if (kind === 'mc') {
+        body = '<div class="choices">' + q.choices.map(function (c, i) {
+          return '<button class="choice" data-i="' + i + '"><span class="letter">' + 'ABCD'[i] + '</span>' + ui.esc(c) + '</button>';
+        }).join('') + '</div>';
+      } else if (kind === 'copy') {
+        body = '<p class="small muted">👆 Di teks, ketuk <b>kata pertama</b> lalu <b>kata terakhir</b> dari kutipan yang kamu pilih.' +
+          (q.para ? ' Lihat paragraf yang ditandai.' : '') + '</p>' +
+          '<div class="copy-box" id="copy-sel"><i class="muted">Belum ada kutipan yang dipilih</i></div>' +
+          '<div class="row gap-s"><button class="btn small" id="copy-clear">🧽 Clear</button></div>';
+      } else if (kind === 'factop') {
+        body = '<table class="factop"><tr><th></th><th>Fact</th><th>Opinion</th></tr>' + q.items.map(function (it, i) {
+          return '<tr data-i="' + i + '"><td>' + ui.esc(it.s) + '</td><td><button class="fo" data-v="fact">◯</button></td><td><button class="fo" data-v="opinion">◯</button></td></tr>';
+        }).join('') + '</table>';
+      } else {
+        body = '<textarea id="open-ans" rows="4" placeholder="Write your answer in English…"></textarea>' +
+          '<small class="muted" id="open-wc">0 words</small>';
+      }
       stage.innerHTML =
         '<div class="quiz-layout">' +
-        '<details class="card passage-side" ' + (window.innerWidth > 900 ? 'open' : '') + '><summary>📄 Show the text / Lihat teks</summary>' + passageHtml() + '</details>' +
+        '<details class="card passage-side" ' + (window.innerWidth > 900 || kind === 'copy' ? 'open' : '') + '><summary>📄 Show the text / Lihat teks</summary>' + passageHtml() + '</details>' +
         '<div class="card quiz-card">' +
-        '<div class="row between"><span class="qtype">' + t.icon + ' ' + t.label + ' <small>· ' + t.id + '</small></span><small class="muted">Question ' + (st.qi + 1) + ' / ' + r.questions.length + '</small></div>' +
+        '<div class="row between"><span class="qtype">' + (q.warm ? '<span class="warm">Warm up</span> ' : '') + t.icon + ' ' + t.label + ' <small>· ' + t.id + '</small></span>' +
+        '<small class="muted">Question ' + (st.qi + 1) + ' / ' + r.questions.length + (q.marks ? ' · ' + m + ' mark' + (m > 1 ? 's' : '') : '') + '</small></div>' +
         '<div class="bar thin"><i style="width:' + (100 * st.qi / r.questions.length) + '%"></i></div>' +
         '<h2 class="question">' + ui.esc(q.q) + ' <button class="btn icon small" id="sayq" title="Dengarkan">🔊</button></h2>' +
-        '<div class="choices">' + q.choices.map(function (c, i) {
-          return '<button class="choice" data-i="' + i + '"><span class="letter">' + 'ABCD'[i] + '</span>' + ui.esc(c) + '</button>';
-        }).join('') + '</div>' +
+        body +
         '<div id="feedback"></div>' +
-        '<div class="row end"><button class="btn primary" id="check" disabled>Check ✔</button></div>' +
+        '<div class="row end"><button class="btn primary" id="check" disabled>' + (kind === 'open' ? 'Submit ✍️' : 'Check ✔') + '</button></div>' +
         '</div></div>';
       wirePassage(ui.$('#passage'));
+      if (q.para) {
+        for (let i = q.para[0]; i <= q.para[1]; i++) {
+          const el = ui.$('#passage p[data-pi="' + (i - 1) + '"]');
+          if (el) el.classList.add('focus');
+        }
+      }
       st.chosen = null; st.checked = false;
-      ui.$('#sayq').onclick = function () { ui.speak(q.q + ' ' + q.choices.map(function (c, i) { return 'ABCD'[i] + '. ' + c; }).join('. ')); };
-      ui.$all('.choice', stage).forEach(function (b) {
-        b.onclick = function () {
-          if (st.checked) return;
-          ui.$all('.choice', stage).forEach(function (x) { x.classList.remove('sel'); });
-          b.classList.add('sel');
-          st.chosen = Number(b.dataset.i);
-          ui.$('#check').disabled = false;
+      const check = ui.$('#check');
+      ui.$('#sayq').onclick = function () {
+        ui.speak(q.q + (kind === 'mc' ? ' ' + q.choices.map(function (c, i) { return 'ABCD'[i] + '. ' + c; }).join('. ') : ''));
+      };
+      function done(ok, html) {
+        st.checked = true;
+        ok === true ? ui.sfx.right() : ok === false ? ui.sfx.wrong() : ui.sfx.pop();
+        ui.$('#feedback').innerHTML = html;
+        check.disabled = false;
+        check.textContent = last ? 'See my score 🏁' : 'Next →';
+      }
+      function praise() { return pick(['Great job! 🎉', 'Correct! ⭐', 'You got it! 💪', 'Excellent! 🌟']); }
+
+      if (kind === 'mc') {
+        ui.$all('.choice', stage).forEach(function (b) {
+          b.onclick = function () {
+            if (st.checked) return;
+            ui.$all('.choice', stage).forEach(function (x) { x.classList.remove('sel'); });
+            b.classList.add('sel');
+            st.chosen = Number(b.dataset.i);
+            check.disabled = false;
+          };
+        });
+      } else if (kind === 'copy') {
+        const spans = ui.$all('#passage .w');
+        let a = null, z = null;
+        function phrase() {
+          if (a == null) return '';
+          const s1 = spans[a], s2 = spans[z == null ? a : z];
+          if (s1.dataset.p === s2.dataset.p) {
+            const txt = r.text[Number(s1.dataset.p)];
+            return txt.slice(Number(s1.dataset.i), Number(s2.dataset.i) + s2.textContent.length);
+          }
+          return spans.slice(a, (z == null ? a : z) + 1).map(function (x) { return x.textContent; }).join(' ');
+        }
+        function show() {
+          spans.forEach(function (x, i) { x.classList.toggle('picked', a != null && i >= a && i <= (z == null ? a : z)); });
+          const ph = phrase();
+          ui.$('#copy-sel').innerHTML = ph ? '“' + ui.esc(ph) + '”' : '<i class="muted">Belum ada kutipan yang dipilih</i>';
+          check.disabled = !ph || st.checked;
+        }
+        st.copy = {
+          tap: function (w) {
+            if (st.checked) return;
+            const i = spans.indexOf(w);
+            if (a == null || z != null) { a = i; z = null; }
+            else if (i < a) { z = a; a = i; }
+            else z = i;
+            ui.sfx.pop();
+            show();
+          },
+          phrase: phrase
         };
-      });
-      ui.$('#check').onclick = function () {
-        if (!st.checked) {
+        ui.$('#copy-clear').onclick = function () { if (!st.checked) { a = null; z = null; show(); } };
+      } else if (kind === 'factop') {
+        const picks = {};
+        ui.$all('.fo', stage).forEach(function (b) {
+          b.onclick = function () {
+            if (st.checked) return;
+            const row = b.closest('tr');
+            ui.$all('.fo', row).forEach(function (x) { x.classList.remove('on'); x.textContent = '◯'; });
+            b.classList.add('on'); b.textContent = '✔';
+            picks[row.dataset.i] = b.dataset.v;
+            check.disabled = Object.keys(picks).length < q.items.length;
+          };
+        });
+        st.factPicks = picks;
+      } else {
+        const ta = ui.$('#open-ans');
+        const min = q.min || 5;
+        ta.oninput = function () {
+          const n = ui.countWords(ta.value);
+          ui.$('#open-wc').textContent = n + ' words' + (n < min ? ' (min ' + min + ')' : '');
+          if (!st.checked) check.disabled = n < min;
+        };
+      }
+
+      check.onclick = function () {
+        if (st.checked) {
+          if (st.selfPending) return;
+          st.copy = null;
+          if (!last) { st.qi++; stepQuiz(stage); } else finishQuiz();
+          return;
+        }
+        if (kind === 'mc') {
           if (st.chosen == null) return;
-          st.checked = true;
           const ok = st.chosen === q.a;
-          st.answers.push({ type: q.type, ok: ok });
-          p.skills[q.type] = p.skills[q.type] || { c: 0, t: 0 };
-          p.skills[q.type].t++;
-          p.stats.questionsTotal++;
-          if (ok) { p.skills[q.type].c++; p.stats.questionsRight++; R.track('correct', 1); }
-          S.save();
+          noteAnswer(q, ok ? m : 0, true);
           ui.$all('.choice', stage).forEach(function (x) {
             const i = Number(x.dataset.i);
-            if (i === q.a) x.classList.add('right');
-            else if (i === st.chosen) x.classList.add('wrong');
+            if (i === q.a) x.classList.add('right'); else if (i === st.chosen) x.classList.add('wrong');
             x.disabled = true;
           });
-          ok ? ui.sfx.right() : ui.sfx.wrong();
-          ui.$('#feedback').innerHTML = '<div class="feedback ' + (ok ? 'ok' : 'no') + '"><b>' + (ok ? pick(['Great job! 🎉', 'Correct! ⭐', 'You got it! 💪', 'Excellent! 🌟']) : 'Not quite. 🤔 Let\'s learn why:') + '</b><p>' + ui.esc(q.why || '') + '</p></div>';
-          this.textContent = st.qi < r.questions.length - 1 ? 'Next →' : 'See my score 🏁';
+          done(ok, '<div class="feedback ' + (ok ? 'ok' : 'no') + '"><b>' + (ok ? praise() : 'Not quite. 🤔 Let\'s learn why:') + '</b><p>' + ui.esc(q.why || '') + '</p></div>');
+        } else if (kind === 'copy') {
+          const ph = st.copy.phrase();
+          const n = normPhrase(ph);
+          const words = n.split(' ').length;
+          // right if the chosen words contain an accepted answer without copying much more than needed
+          const ok = (q.accept || []).some(function (acc) {
+            const an = normPhrase(acc);
+            return n.indexOf(an) >= 0 && words <= an.split(' ').length + 4;
+          });
+          noteAnswer(q, ok ? m : 0, true, { text: ph });
+          done(ok, '<div class="feedback ' + (ok ? 'ok' : 'no') + '"><b>' + (ok ? praise() : 'Not quite. 🤔') + '</b>' +
+            '<p>Answer: “' + ui.esc(q.accept[0]) + '”</p>' + (q.why ? '<p>' + ui.esc(q.why) + '</p>' : '') + '</div>');
+        } else if (kind === 'factop') {
+          let right = 0;
+          ui.$all('.factop tr[data-i]', stage).forEach(function (row) {
+            const it = q.items[Number(row.dataset.i)];
+            const want = it.fact ? 'fact' : 'opinion';
+            const ok = st.factPicks[row.dataset.i] === want;
+            if (ok) right++;
+            row.classList.add(ok ? 'right' : 'wrong');
+            row.insertAdjacentHTML('beforeend', '<td class="fo-ans">' + (ok ? '✅' : '→ ' + (it.fact ? 'Fact' : 'Opinion')) + '</td>');
+          });
+          // like the question books: all correct = full marks, one wrong = one mark less
+          const got = right === q.items.length ? m : Math.max(0, m - (q.items.length - right));
+          noteAnswer(q, got, true);
+          done(got === m, '<div class="feedback ' + (got === m ? 'ok' : 'no') + '"><b>' + right + ' / ' + q.items.length + ' correct</b>' +
+            '<p>' + ui.esc(q.why || 'A fact can be checked and proved. An opinion is what someone thinks or feels.') + '</p></div>');
         } else {
-          if (st.qi < r.questions.length - 1) { st.qi++; stepQuiz(stage); }
-          else finishQuiz();
+          const text = ui.$('#open-ans').value.trim();
+          ui.$('#open-ans').readOnly = true;
+          st.checked = true;
+          st.selfPending = true;
+          check.disabled = true;
+          ui.$('#feedback').innerHTML = '<div class="feedback ok"><b>Compare with an example answer:</b><p>' + ui.esc(q.sample || '') + '</p>' +
+            '<p class="small">Bandingkan jawabanmu. Jawaban boleh berbeda, asalkan idenya sama dan ada buktinya dari teks' + (m > 1 ? ' (untuk ' + m + ' marks, berikan ' + m + ' poin)' : '') + '.</p>' +
+            '<div class="row gap wrap self-mark"><button class="btn small" data-g="' + m + '">✅ Same idea</button>' +
+            (m > 1 ? '<button class="btn small" data-g="' + Math.floor(m / 2) + '">🟡 Partly</button>' : '') +
+            '<button class="btn small" data-g="0">❌ Not yet</button></div></div>';
+          ui.$all('.self-mark button', stage).forEach(function (b) {
+            b.onclick = function () {
+              const got = Number(b.dataset.g);
+              noteAnswer(q, got, false, { text: text });
+              p.writings = p.writings || [];
+              p.writings.unshift({ at: Date.now(), lesson: r.title, prompt: q.q, text: text + '  [cek mandiri: ' + got + '/' + m + ']' });
+              p.writings = p.writings.slice(0, 100);
+              S.save();
+              st.selfPending = false;
+              ui.$all('.self-mark button', stage).forEach(function (x) { x.disabled = true; x.classList.toggle('primary', x === b); });
+              done(null, ui.$('#feedback').innerHTML);
+              ui.$all('.self-mark button', stage).forEach(function (x) { x.disabled = true; });
+            };
+          });
         }
       };
     }
@@ -234,9 +403,15 @@
     function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
 
     function finishQuiz() {
-      const right = st.answers.filter(function (a) { return a.ok; }).length;
-      const score = right / r.questions.length;
+      // Only automatically marked questions decide the score and the reading level;
+      // written answers are self-checked and saved for a parent/teacher to read.
+      const auto = st.answers.filter(function (a) { return a.auto; });
+      const open = st.answers.filter(function (a) { return !a.auto; });
+      const max = auto.reduce(function (s, a) { return s + a.marks; }, 0);
+      const got = auto.reduce(function (s, a) { return s + a.got; }, 0);
+      const score = max ? got / max : 1;
       st.score = score;
+      st.marks = { got: got, max: max, open: open.length, openGot: open.reduce(function (s, a) { return s + a.got; }, 0), openMax: open.reduce(function (s, a) { return s + a.marks; }, 0) };
       const prev = p.readings[r.id];
       p.readings[r.id] = {
         best: Math.max(score, prev ? prev.best : 0),
@@ -249,8 +424,8 @@
       // Adaptive level (first attempt only, like ReadTheory)
       if (firstTime) adapt(score);
       S.save();
-      const xp = Math.round((right * 10 + 10) * (firstTime ? 1 : 0.5));
-      const coins = right * 2 + (score === 1 ? 10 : 0);
+      const xp = Math.round((got * 10 + open.length * 8 + 10) * (firstTime ? 1 : 0.5));
+      const coins = got * 2 + open.length * 2 + (score === 1 ? 10 : 0);
       st.xp += xp;
       R.track('reading', 1);
       R.award(xp, coins, 'Reading: ' + r.title);
@@ -263,7 +438,7 @@
       const from = p.readingLevel;
       if (score >= 0.8 && r.level >= from) { lp.up++; lp.down = 0; }
       else if (score < 0.5 && r.level <= from) { lp.down++; lp.up = 0; }
-      if (lp.up >= 2 && from < 5) {
+      if (lp.up >= 2 && from < App.levelIds().length) {
         p.readingLevel++; lp.up = 0;
         p.levelHistory.push({ from: from, to: p.readingLevel, at: Date.now() });
         st.levelMsg = '⬆️ LEVEL UP! Kamu naik ke ' + App.LEVELS[p.readingLevel].name + '!';
@@ -384,7 +559,7 @@
       const w = r.write;
       const vocabWords = (r.vocab || []).map(function (v) { return v.forms && v.forms.length ? v.forms : [v.w]; });
       stage.innerHTML =
-        '<div class="card"><h2>✏️ Write about it</h2>' +
+        '<div class="card"><h2>' + (r.ks2 ? '💬 Now Try This' : '✏️ Write about it') + '</h2>' +
         '<p class="prompt">' + ui.esc(w.prompt) + '</p><p class="small muted">💡 ' + ui.esc(w.hint || '') + '</p>' +
         '<textarea id="wtext" rows="6" placeholder="Write in English here…"></textarea>' +
         '<ul class="checklist" id="checks"></ul>' +
@@ -442,7 +617,10 @@
         '<div class="big-emoji">' + (score === 1 ? '🏆' : score >= 0.7 ? '🌟' : '💪') + '</div>' +
         '<h2>' + (score === 1 ? 'Perfect!' : score >= 0.7 ? 'Great reading!' : 'Good effort!') + '</h2>' +
         '<div class="big-stars">' + C.stars(score) + '</div>' +
-        '<p>Quiz: <b>' + right + ' / ' + r.questions.length + '</b> correct · ' + mins + ' min</p>' +
+        (st.marks && st.marks.max !== r.questions.length || (st.marks && st.marks.open)
+          ? '<p>Marked by the app: <b>' + st.marks.got + ' / ' + st.marks.max + ' marks</b> · ' + mins + ' min</p>' +
+            (st.marks.open ? '<p class="small">✍️ ' + st.marks.open + ' written answer' + (st.marks.open > 1 ? 's' : '') + ' (cek mandiri ' + st.marks.openGot + ' / ' + st.marks.openMax + ' marks). Tunjukkan ke orang tua/guru di menu 👪 Parent.</p>' : '')
+          : '<p>Quiz: <b>' + right + ' / ' + r.questions.length + '</b> correct · ' + mins + ' min</p>') +
         '<p class="reward-line">+' + st.xp + ' XP</p>' +
         (st.levelMsg ? '<div class="feedback ok"><b>' + st.levelMsg + '</b></div>' : '') +
         (!firstTime ? '<p class="small muted">Latihan ulang: XP setengah, tidak mempengaruhi level.</p>' : '') +

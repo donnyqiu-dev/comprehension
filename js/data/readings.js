@@ -429,7 +429,11 @@ App.QTYPES = {
   seq: { label: 'Sequence', id: 'Urutan', icon: '🔢' },
   purpose: { label: 'Author\'s Purpose', id: 'Tujuan Penulis', icon: '✍️' },
   cause: { label: 'Cause & Effect', id: 'Sebab-Akibat', icon: '⚡' },
-  video: { label: 'Listening', id: 'Menyimak', icon: '🎧' }
+  video: { label: 'Listening', id: 'Menyimak', icon: '🎧' },
+  genre: { label: 'Text Type', id: 'Jenis Teks', icon: '📑' },
+  language: { label: 'Author\'s Craft', id: 'Pilihan Bahasa', icon: '🎨' },
+  structure: { label: 'Text Structure', id: 'Struktur Teks', icon: '🧱' },
+  fact: { label: 'Fact or Opinion', id: 'Fakta/Opini', icon: '⚖️' }
 };
 
 App.LEVELS = {
@@ -439,3 +443,6 @@ App.LEVELS = {
   4: { name: 'Level 4 · Voyager', grade: '≈ Kelas 6–7' },
   5: { name: 'Level 5 · Champion', grade: '≈ Kelas 7–8' }
 };
+
+/* Level ids in order (Level 6 is added in readings-y6.js). */
+App.levelIds = function () { return Object.keys(App.LEVELS).map(Number).sort(function (a, b) { return a - b; }); };

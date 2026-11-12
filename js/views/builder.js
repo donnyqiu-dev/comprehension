@@ -13,7 +13,7 @@
 
   function field(label, html) { return '<label>' + label + html + '</label>'; }
   function levelSelect(val) {
-    return '<select name="level">' + [1, 2, 3, 4, 5].map(function (l) { return '<option value="' + l + '"' + (Number(val) === l ? ' selected' : '') + '>' + App.LEVELS[l].name + ' ' + App.LEVELS[l].grade + '</option>'; }).join('') + '</select>';
+    return '<select name="level">' + App.levelIds().map(function (l) { return '<option value="' + l + '"' + (Number(val) === l ? ' selected' : '') + '>' + App.LEVELS[l].name + ' ' + App.LEVELS[l].grade + '</option>'; }).join('') + '</select>';
   }
 
   let radioSeq = 0;

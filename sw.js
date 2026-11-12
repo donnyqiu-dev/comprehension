@@ -1,9 +1,9 @@
 /* Offline cache for the app shell. Videos and the dictionary still need internet. */
-const CACHE = 'readquest-v12';
+const CACHE = 'readquest-v13';
 const FILES = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest', 'assets/icon.svg',
   'js/store.js', 'js/ui.js', 'js/srs.js', 'js/rewards.js', 'js/app.js',
-  'js/data/readings.js', 'js/data/videos.js', 'js/data/rewards.js',
+  'js/data/readings.js', 'js/data/readings-y6.js', 'js/data/videos.js', 'js/data/rewards.js',
   'js/views/common.js', 'js/views/home.js', 'js/views/reading.js', 'js/views/video.js',
   'js/views/words.js', 'js/views/me.js', 'js/views/parent.js', 'js/views/builder.js'
 ];
